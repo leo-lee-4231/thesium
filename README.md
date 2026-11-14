@@ -10,7 +10,7 @@ An auditable, self-hosted personal investment agent: it remembers what you actua
 
 ## 它是什么
 
-- 围绕 **Investment Stream**（首版：BTC 现货）持续跟踪行情与持仓；
+- 围绕 **Investment Product**（首版：BTC 现货 + USDT 永续）持续跟踪行情与持仓；
 - 用 **Investment Thesis** 版本化保存你的投资目标、观点、目标价与约束；
 - 定时调用你配置的 OpenAI 兼容模型，输出**结构化、可追溯**的分析与建议；
 - 支持 **Web 对话**，并可延伸到 **飞书机器人**，外出时也能问一句「我的论点还成立吗」；
@@ -45,7 +45,7 @@ Web (Vue 3)          Feishu Bot          future: WeCom / MCP
               |
         Repositories / PostgreSQL
               |
-   Binance Market Provider · OpenAI-compatible LLM · Email
+   OKX Market Provider · OpenAI-compatible LLM · Email
               |
      Scheduler → Worker → Agent Run → Decision → Notification
 ```
@@ -90,7 +90,7 @@ make up
 | 文档 | 内容 |
 |---|---|
 | [设计文档索引](docs/design/README.md) | 阅读顺序与当前结论 |
-| [00 · 架构决策](docs/design/00-decisions.md) | D1–D17，含对话/渠道/润色边界 |
+| [00 · 架构决策](docs/design/00-decisions.md) | D1–D22，含对话/渠道/润色/永续边界 |
 | [01 · 领域模型](docs/design/01-domain-model.md) | 聚合、不变量、ER 图、表与索引 |
 | [02 · Investment Thesis](docs/design/02-thesis.md) | 结构化 Schema、分级确认、版本状态机 |
 | [03 · Agent Runtime](docs/design/03-agent-runtime.md) | Prompt 分层、工具契约、Run 生命周期 |
@@ -101,7 +101,7 @@ make up
 
 ## 状态
 
-**P0 骨架已可启动，业务功能尚未实现。** v1.0 范围：BTC 现货闭环 + Web 只读对话 + Thesis 编辑器（含 AI 润色/整理）；飞书 v1.1。下一步 P1：Binance 行情、K 线与指标。
+**P0 骨架已可启动，业务功能尚未实现。** v1.0 范围：BTC 现货 + USDT 永续、Web 只读对话、Thesis 编辑器（含 AI 润色/整理）；飞书 v1.1。下一步 P1：OKX 行情、K 线与指标。
 
 ## 许可证
 

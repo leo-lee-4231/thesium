@@ -1,7 +1,7 @@
 # 02 · Investment Thesis
 
 > 状态：草案 v0.1
-> 对应决策：D4（分级确认）、D13（对话记忆边界）、D14（正式变更边界）、D16（AI 润色）
+> 对应决策：D4（分级确认）、D13（对话记忆边界）、D14（正式变更边界）、D16（AI 润色）、D21（永续约束）
 > 一句话：**用户原话是事实，结构化内容是整理；AI 可以整理，不能替用户改口。**
 
 ---
@@ -76,9 +76,16 @@ Investment Thesis 统一承载用户对某个资产的目标、观点与约束�
     "allow_reduce": true,
     "avoid_full_exit": true
   },
+  "derivative_intent": {
+    "allow_perpetual": true,
+    "allow_short": false,
+    "max_leverage": "2",
+    "max_margin_usd": "2000",
+    "min_liquidation_buffer_pct": "30"
+  },
   "constraints": [
     "不希望仅因短期下跌而完全离场",
-    "不使用杠杆"
+    "不使用超过 2 倍杠杆"
   ],
   "open_questions": [
     "如果跌破 60,000，论点是否仍然成立？"
@@ -100,6 +107,7 @@ Investment Thesis 统一承载用户对某个资产的目标、观点与约束�
 | `key_levels` | object | 关注价位（支撑/阻力/观察） | 可为空 |
 | `risk` | object | 风险预算与限制 | 可为空 |
 | `position_intent` | object | 仓位意图，不是当前持仓 | 可为空 |
+| `derivative_intent` | object | 永续意图：是否允许、是否允许做空、最大杠杆/保证金、最低清算缓冲 | 可为空 |
 | `constraints` | string[] | 投资约束（自然语言） | 可为空数组 |
 | `open_questions` | string[] | 用户当前关注的问题 | 可为空数组 |
 | `notes` | string \| null | 补充说明 | 可空 |
@@ -134,6 +142,7 @@ Investment Thesis 统一承载用户对某个资产的目标、观点与约束�
 | `scenarios[].status` 改为 `INVALIDATED` | **MATERIAL** | 情景失效需要重新审视 |
 | `risk.*` | **MATERIAL** | 风险预算是硬约束 |
 | `position_intent.*` | **MATERIAL** | 仓位意图影响加减仓建议 |
+| `derivative_intent.*` | **MATERIAL** | 永续杠杆/保证金/做空权限是硬约束 |
 | `constraints` 增删改 | **MATERIAL** | 约束是用户明确边界 |
 | `thesis_statement` 改写 | MINOR | 摘要措辞，除非引入新的方向/价位（需重新解析） |
 | `key_levels` | MINOR | 观察价位，不直接构成交易指令 |
@@ -418,6 +427,7 @@ stateDiagram-v2
 ### 7.2 定时分析
 
 - 每次 `MONITOR_ANALYSIS` 固定当次 ACTIVE 版本 ID；运行中 Thesis 变化不影响本次上下文。
+- 若存在永续持仓，同时固定 derivative snapshot；`derivative_intent` 作为杠杆/保证金/做空权限的硬约束。
 - 下一轮使用新版本（优先 `final_text`），并在 `changes_since_previous` 中解释版本差异。
 - 没有 ACTIVE 版本（观察型）时，Agent 只能基于行情与持仓分析，明确声明「没有正式论点」。
 
@@ -438,6 +448,8 @@ stateDiagram-v2
 - `scenarios[].id` 在数组内唯一。
 - `target_currency` 默认等于 Instrument 的 `quote_currency`；不一致时 warning。
 - `max_position_pct` 与 `preferred_position_pct` 不强制大小关系，但若 preferred > max 给 warning。
+- `derivative_intent.max_leverage` 在 `0.1–125`；`max_margin_usd >= 0`；`min_liquidation_buffer_pct` 在 `0–100`。
+- `derivative_intent.allow_perpetual=false` 但存在永续持仓 → warning「观点禁止永续，但账本里有持仓」。
 
 ### 8.2 语义警告（不阻断保存）
 

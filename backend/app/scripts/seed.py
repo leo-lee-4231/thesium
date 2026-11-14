@@ -12,6 +12,11 @@ logger = logging.getLogger(__name__)
 
 LOCAL_EMAIL = "local@thesium.local"
 
+INSTRUMENTS = [
+    {"provider": "okx", "symbol": "BTC-USDT", "market_type": "SPOT"},
+    {"provider": "okx", "symbol": "BTC-USDT-SWAP", "market_type": "SWAP"},
+]
+
 
 async def seed() -> None:
     async with SessionLocal() as session:
@@ -28,23 +33,30 @@ async def seed() -> None:
             await session.flush()
             logger.info("seeded BTC asset")
 
-        instrument = await session.scalar(
-            select(Instrument).where(
-                Instrument.provider == "binance",
-                Instrument.symbol == "BTCUSDT",
-                Instrument.market_type == "SPOT",
+        for spec in INSTRUMENTS:
+            instrument = await session.scalar(
+                select(Instrument).where(
+                    Instrument.provider == spec["provider"],
+                    Instrument.symbol == spec["symbol"],
+                    Instrument.market_type == spec["market_type"],
+                )
             )
-        )
-        if instrument is None:
-            instrument = Instrument(
-                asset_id=asset.id,
-                provider="binance",
-                symbol="BTCUSDT",
-                market_type="SPOT",
-                quote_currency="USDT",
-            )
-            session.add(instrument)
-            logger.info("seeded BTCUSDT instrument")
+            if instrument is None:
+                session.add(
+                    Instrument(
+                        asset_id=asset.id,
+                        provider=spec["provider"],
+                        symbol=spec["symbol"],
+                        market_type=spec["market_type"],
+                        quote_currency="USDT",
+                    )
+                )
+                logger.info(
+                    "seeded %s %s %s",
+                    spec["provider"],
+                    spec["symbol"],
+                    spec["market_type"],
+                )
 
         await session.commit()
 

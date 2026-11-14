@@ -1,7 +1,7 @@
 # 04 · Decision 与通知
 
 > 状态：草案 v0.1
-> 对应决策：D5（只发重要变化）、D15（语气边界）
+> 对应决策：D5（只发重要变化）、D15（语气边界）、D19（合约观察）、D22（合约建议）
 > 一句话：**Decision 是程序可校验的结构化建议；是否打扰用户，由程序按规则决定，不由模型决定。**
 
 ---
@@ -33,6 +33,8 @@
 
 - `SELL`：**观点驱动**——你认为方向变了，应该退出/大幅减仓。
 - `REDUCE`：**风险驱动**——观点可能没变，但仓位/波动/预算要求你降风险。
+
+有永续持仓时，`decision` 表示整体立场，具体动作放 `derivative_recommendation`。例如现货 HOLD、永续 REDUCE_LONG，整体可以是 REDUCE。两者不能自相矛盾。
 
 `HOLD` 与 `WAIT` 的区别：
 
@@ -95,6 +97,12 @@
     "risk_budget_usage_pct": "42.0",
     "notes": "仓位在风险预算内，但浮盈回撤空间有限。"
   },
+  "derivative_recommendation": {
+    "action": "HOLD",
+    "size_change_pct": null,
+    "rationale": "永续仓位维持，等待 4h 动能确认；清算缓冲仍在用户约束内。",
+    "invalidation_conditions": []
+  },
   "changes_since_previous": [
     {
       "field": "decision",
@@ -142,6 +150,7 @@
 | `evidence_against` | array | 可为空，但不能与 `evidence_for` 重复 |
 | `thesis_alignment` | object | `status` 必填 |
 | `position_impact` | object | `assessment` 必填 |
+| `derivative_recommendation` | object | 有永续持仓时必填；动作需匹配方向；无持仓可省略或 `NONE` |
 | `changes_since_previous` | array | 无变化时为 `[]`；不得虚构变化 |
 | `invalidation_conditions` | array | `BUY/SELL/REDUCE` 至少 1 条 |
 | `data_quality` | object | `status` 必填 |
@@ -194,6 +203,46 @@
 | `DEGRADED` | 部分数据缺失/过期，仍可有限分析 | `HOLD/WAIT/REDUCE/REVIEW`；`BUY/SELL` 需显著降低 confidence |
 | `INSUFFICIENT` | 无法可靠分析 | 仅 `WAIT/REVIEW`，`confidence <= 0.5`，不通知 |
 
+### 4.7 Derivative Recommendation
+
+只在 USDT 本位永续持仓存在时要求；无持仓时可省略或为 `NONE`。
+
+```json
+{
+  "action": "REDUCE_LONG",
+  "size_change_pct": "25",
+  "rationale": "仓位接近用户 max_leverage，且距清算价缓冲低于 30%",
+  "invalidation_conditions": [
+    "4h 收盘重新站上 95,000"
+  ]
+}
+```
+
+| action | 含义 | 前置条件 |
+|---|---|---|
+| `OPEN_LONG` | 开多 | 当前无永续持仓 |
+| `INCREASE_LONG` | 加多 | 当前 LONG |
+| `REDUCE_LONG` | 减多 | 当前 LONG，`size_change_pct` 必填 |
+| `CLOSE_LONG` | 平多 | 当前 LONG |
+| `OPEN_SHORT` | 开空 | 当前无永续持仓，且 Thesis 允许做空 |
+| `INCREASE_SHORT` | 加空 | 当前 SHORT |
+| `REDUCE_SHORT` | 减空 | 当前 SHORT，`size_change_pct` 必填 |
+| `CLOSE_SHORT` | 平空 | 当前 SHORT |
+| `ADJUST_MARGIN` | 调整保证金 | 当前有持仓；`rationale` 必填 |
+| `HOLD` | 维持 | 当前有持仓 |
+| `NONE` | 不涉及永续 | 当前无持仓 |
+
+校验：
+
+- 单向持仓；同一轮不得同时出现多空动作。
+- 动作必须匹配当前方向；`OPEN_*` 只在无持仓时允许；`CLOSE_*` 必须有持仓。
+- `size_change_pct` 在 `0–100`；`REDUCE_*` 必填，`INCREASE_*` 可选（默认按建议仓位）。
+- **不得输出估算清算价**；只能引用用户录入的 `liquidation_price`。用户未填时，风险指标为空，`rationale` 必须说明“清算价未提供”。
+- `derivative_intent.allow_perpetual=false` 时，`OPEN_*`/`INCREASE_*` 视为与 Thesis 冲突，整体 decision 应为 `REVIEW`。
+- `OPEN_SHORT`/`INCREASE_SHORT` 需要 `derivative_intent.allow_short=true`；否则 `REVIEW`。
+- 非 `HOLD/NONE` 的合约建议默认 `priority >= HIGH`，进入通知策略。
+- 有永续持仓但缺少 `derivative_recommendation` → Schema 校验失败，要求重生成。
+
 ---
 
 ## 5. 程序侧校验与业务规则
@@ -206,6 +255,7 @@
 - `changes_since_previous` 的 `before` 必须等于上一条 Decision 的对应字段；否则视为幻觉，要求重生成。
 - `invalidation_conditions` 的 threshold 必须来自上下文（用户 Thesis 或行情），不得编造。
 - `data_quality.status=INSUFFICIENT` → 强制 `decision ∈ {WAIT, REVIEW}`、`confidence <= 0.5`、`notify=false`。
+- 有永续持仓时，`derivative_recommendation` 必须存在；动作必须匹配当前方向；`OPEN_*`/`CLOSE_*` 前置条件必须成立；不得引用估算清算价。
 
 ### 5.2 软校验（记录 warning，不阻断）
 
@@ -215,6 +265,8 @@
 | `BUY` 但 `position_impact=RISK_BUDGET_EXCEEDED` | warning；通知策略强制 HIGH |
 | `confidence > 0.9` | warning；UI 提示「模型自评，不是胜率」 |
 | `evidence_for` 全为 `INFERENCE` | warning；降低通知优先级 |
+| 合约动作非 `HOLD/NONE` 但 `priority < HIGH` | 程序提升为 HIGH |
+| 有永续持仓但用户未填清算价 | warning；风险指标显示“未提供”，不阻止建议 |
 | `summary` 含「保证/稳赚/一定」 | 重生成或拒绝 |
 
 ### 5.3 反抖动
@@ -296,6 +348,7 @@ dedupe_key = sha256(
 | `SELL` | HIGH | 是 | 方向性退出 |
 | `REDUCE` | HIGH | 是 | 风险动作 |
 | `REVIEW` | HIGH | 是 | 前提变化，需要用户重新审视 |
+| 合约动作（非 `HOLD/NONE`） | HIGH | 是 | 开/平/加减合约，或调保证金 |
 
 模型可建议 `URGENT`；程序仅在「失效条件触发 + 数据 GOOD」时接受。
 

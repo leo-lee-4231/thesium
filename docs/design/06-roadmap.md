@@ -21,14 +21,14 @@
 | 里程碑 | 内容 | 人日 | 累计 |
 |---|---|---:|---:|
 | M0 | 骨架可启动：Docker Compose、FastAPI、Postgres、Web 壳、CI | 2 | 2 |
-| M1 | 行情 + Stream：Binance、K 线、指标、Stream 页面 | 4 | 6 |
-| M2 | 持仓：事件、快照、风险计算、录入表单 | 4 | 10 |
-| M3 | Thesis：Schema、解析、润色、版本、分级确认、diff | 6 | 16 |
-| M4 | 监控：Runtime、工具、Decision、Scheduler、邮件 | 7 | 23 |
-| M5 | Web 对话：Conversation、SSE、只读工具、语气 | 5 | 28 |
-| M6 | Dashboard 与可追溯性、验收、发布 v1.0 | 3 | 31 |
-| M7 | 飞书只读渠道 + 推送 | 5 | 36 |
-| M8 | 硬化：备份、安全、文档、v1.1 发布 | 2 | 38 |
+| M1 | 行情 + Stream：OKX SPOT/SWAP、K 线、指标、产品卡 | 5 | 7 |
+| M2 | 持仓：现货 + USDT 永续、快照、风险、录入表单 | 6 | 13 |
+| M3 | Thesis：Schema、解析、润色、版本、分级确认、diff | 6 | 19 |
+| M4 | 监控：Runtime、工具、Decision（现货+合约）、Scheduler、邮件 | 8 | 27 |
+| M5 | Web 对话：Conversation、SSE、只读工具、语气 | 6 | 33 |
+| M6 | Dashboard 与可追溯性、验收、发布 v1.0 | 3 | 36 |
+| M7 | 飞书只读渠道 + 推送 | 5 | 41 |
+| M8 | 硬化：备份、安全、文档、v1.1 发布 | 2 | 43 |
 
 > M0–M6 是 v1.0；M7–M8 是 v1.1。M4 与 M5 的顺序可交换，但对话依赖 Runtime，不能早于 M4。
 
@@ -58,45 +58,48 @@
 
 ---
 
-## 4. P1 · 行情与 Stream
+## 4. P1 · 行情与产品
 
-**目标**：创建一个 BTC Stream，看到实时报价、K 线和基础指标。
+**目标**：创建 BTC 投资产品，看到 OKX 现货报价、SWAP 观察数据、K 线和基础指标。
 
 任务：
 
-- Market Provider 接口；Binance 实现（ticker、klines）；超时、重试、错误映射。
-- K 线采集：每小时增量 + 首次回填 30 天；`market_candles` 唯一键幂等。
+- Market Provider 接口；**OKXProvider**（ticker、klines、mark price、funding rate、open interest）；超时、重试、限频、错误映射。
+- Instruments：`BTC-USDT`（SPOT）、`BTC-USDT-SWAP`（SWAP）；Provider 契约测试覆盖两类。
+- K 线采集：每小时增量 + 首次回填 30 天；`market_candles` 唯一键幂等；确认 OKX 日线边界并统一到 UTC。
 - 指标计算：EMA20、RSI14、MACD、波动率；多周期（1h/4h/1d）；纯函数 + 单测。
-- 行情快照：`market_snapshots` + `staleness`（FRESH/STALE/UNKNOWN）。
-- Stream CRUD；首版限制一个 ACTIVE。
-- Web：Stream 创建向导第一步；行情卡片 + K 线图（ECharts）。
+- 行情快照：`market_snapshots` + `staleness`（FRESH/STALE/UNKNOWN）；衍生品观察单独字段。
+- 产品 CRUD；首版限制一个 ACTIVE；Web 产品卡 + 详情页 + K 线图（ECharts）。
+- 资产目录：`GET /assets` 返回资产与 SPOT/SWAP 标的。
 
 验收：
 
-- Binance 不可用时，页面显示 `STALE/UNKNOWN`，不显示假实时。
-- K 线重复采集不产生重复行。
+- OKX 不可用时，页面显示 `STALE/UNKNOWN`，不显示假实时。
+- K 线重复采集不产生重复行；日线边界与 UTC 聚合结果一致。
 - 指标数值与独立计算脚本一致（golden test）。
+- 产品卡可点击进入详情；现货与 SWAP 数据分开展示。
 
 ---
 
-## 5. P2 · 持仓
+## 5. P2 · 持仓（现货 + USDT 永续）
 
-**目标**：录入成交/修正，得到正确持仓与风险快照。
+**目标**：录入现货成交与永续持仓/事件，得到正确的风险快照。
 
 任务：
 
-- Position Event：BUY/SELL/CORRECTION/OPENING；加权平均成本；手续费处理。
-- 事务：event + snapshot + 读模型 + version 自增。
-- 已实现/未实现盈亏、市值、敞口、风险预算占用。
-- 修正记录 before/after，不静默覆盖。
-- Web：持仓卡片、成交表单、事件时间线。
-- 幂等：`Idempotency-Key`；并发提交保护。
+- 现货：Position Event（BUY/SELL/CORRECTION/OPENING）；加权平均成本；手续费；事务与快照。
+- 永续：`derivative_positions` / events / snapshots；OPEN/INCREASE/REDUCE/CLOSE/ADJUST_MARGIN/FUNDING/CORRECTION；单向持仓。
+- 永续计算：notional、uPnL、ROE、保证金占用、距用户清算价百分比、风险预算占用。
+- **清算价只接受用户输入**；不估算；为空时风险字段为 null。
+- Web：现货/永续两个 Tab，表单、事件时间线、风险卡片；数量单位提示（基础资产 vs OKX 张数）。
+- 幂等：`Idempotency-Key`；并发提交保护；方向冲突返回 409。
 
 验收：
 
-- 连续买卖后数量、成本、已实现盈亏与手工计算一致。
+- 连续买卖后现货数量、成本、已实现盈亏与手工计算一致。
+- 永续多/空 uPnL、ROE、距清算价与手工计算一致；方向冲突被拒绝。
 - 修正后旧事件仍可查，快照不可变。
-- 重复提交同一成交不重复扣减。
+- 未填清算价时不显示假数字。
 
 ---
 
@@ -134,9 +137,9 @@
 
 - LLM Provider：OpenAI 兼容客户端、工具调用、流式、超时/重试、连接测试。
 - Tool Registry：Market/Portfolio/Thesis/Decision 读取工具；越权与参数校验。
-- ContextBuilder：监控上下文；固定 Thesis/Position/Market 版本。
-- Prompt：system/monitor v1；输出 Decision Schema。
-- OutputValidator：Schema + 业务规则 + 重试。
+- ContextBuilder：监控上下文；固定 Thesis/现货快照/永续快照/Market 版本。
+- Prompt：system/monitor v1；输出 Decision Schema（含 `derivative_recommendation`）。
+- OutputValidator：Schema + 业务规则 + 合约动作方向校验 + 重试。
 - `agent_runs` / `decisions` 持久化；1:1 约束。
 - Scheduler：APScheduler 或 Worker 内 cron；`jobs` 表 + `FOR UPDATE SKIP LOCKED`。
 - 通知策略：优先级、类别跃迁、alignment、冷却、去重；邮件发送 + 重试。
@@ -149,6 +152,7 @@
 - Decision 绑定正确的 Thesis 版本、持仓快照、行情时间戳。
 - 普通 WAIT 不发邮件；HOLD→SELL 发一封；4h 内不重复。
 - 模型输出不合法时 Run FAILED，不写 Decision、不发通知。
+- 有永续持仓时缺少 `derivative_recommendation` → 校验失败；动作与方向不匹配 → 拒绝。
 
 ---
 
@@ -160,8 +164,8 @@
 
 - `conversations` / `conversation_messages`；seq 分配；幂等。
 - ConversationService：创建/取会话、落用户消息、调用 Runtime、落助手消息。
-- ContextBuilder（对话）：Stream brief + Thesis + Position + 最近 Decision + 摘要 + 最近 12 条。
-- 只读工具集：行情、指标、Thesis、持仓、风险、Decision、`simulate_position_change`。
+- ContextBuilder（对话）：Stream brief + Thesis + 现货/永续持仓 + 衍生品观察 + 最近 Decision + 摘要 + 最近 12 条。
+- 只读工具集：行情、指标、衍生品观察、Thesis、现货/永续持仓、风险、Decision、`simulate_position_change`、`simulate_derivative_change`。
 - 只读约束：无写工具；输出后置检查（「已帮你改」拦截）。
 - SSE：meta/status/tool/delta/done/error；断线补齐。
 - 滚动摘要（阈值 + 失败降级）。
@@ -174,6 +178,7 @@
 - 要求改 Thesis/记成交 → 明确拒绝代写并指路；数据库无变更。
 - 亏损焦虑 → 不催促、不保证、给 if-then 选项。
 - 任意回答可打开 Run 详情。
+- 问「合约现在风险大吗」→ 引用用户清算价与距清算价距离，不编造交易所清算价。
 
 ---
 
@@ -364,7 +369,8 @@ alembic upgrade head
 - 原计划对话可生成 Proposal；现明确 **对话只读**，正式变更走编辑器/表单。
 - 增加 Thesis 编辑器内的 **AI 润色**（`THESIS_POLISH`）：只改表达、不改事实，原文与确认正文双保存。
 - 增加语气与心理支持要求（D15），纳入 P5 验收。
-- 其余（单租户、BTC 现货、Binance、无新闻、分级确认、重要通知）不变。
+- 行情源从 Binance 改为 **OKX 公共 API**（D18）；新增 **USDT 本位永续持仓/风险/建议**（D21/D22）与 SWAP 观察数据（D19）。
+- 其余（单租户、BTC 首发资产、无新闻、分级确认、重要通知）不变。
 
 ---
 

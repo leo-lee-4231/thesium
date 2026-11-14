@@ -1,7 +1,7 @@
 # 01 · 领域模型与数据边界
 
 > 状态：草案 v0.1（含对话域）
-> 对应决策：`00-decisions.md` D1–D16
+> 对应决策：`00-decisions.md` D1–D22
 > 说明：本文是设计口径，不是最终 Migration；字段名可在实现时微调，但聚合边界与不变量不应随意改变。
 
 ---
@@ -11,7 +11,7 @@
 1. **三分明确**：客观市场事实、用户真实持仓、用户正式观点、AI 推断，四类信息各有归属，不互相覆盖。
 2. **可追溯**：任何一次分析或对话，都能回答「用了哪一版 Thesis、哪份持仓、哪个时间点的行情、哪个模型」。
 3. **对话与监控同源**：对话和定时分析共享同一份上下文与工具，不出现两个 Agent 各说各话。
-4. **不过度设计**：v1 只支持 BTC 现货与单用户；不因为未来可能的多租户、多资产、合约而把当前模型复杂化，但保留扩展位。
+4. **不过度设计**：v1 支持 BTC 现货 + USDT 本位永续 + 单用户；币本位、交割、期权、多用户留扩展位，不提前实现。
 
 ---
 
@@ -21,7 +21,7 @@
 |---|---|---|---|
 | Identity & Config | 本地用户、LLM Provider、通知偏好、渠道绑定 | `users`, `llm_providers`, `channel_bindings` | 登录、多租户、权限系统 |
 | Market Data | Instrument、K 线、行情快照、指标计算 | `assets`, `instruments`, `market_candles`, `market_snapshots` | 交易、下单 |
-| Portfolio | 真实持仓、成交事件、持仓快照、风险计算 | `positions`, `position_events`, `position_snapshots` | AI 建议仓位、自动调仓 |
+| Portfolio | 真实持仓、成交事件、持仓快照、风险计算 | `positions`, `position_events`, `position_snapshots`, `derivative_positions`, `derivative_position_events`, `derivative_position_snapshots` | AI 建议仓位、自动调仓 |
 | Thesis | 投资目标与观点的版本化、确认、生效 | `investment_theses`, `proposals` | 聊天记录、AI 记忆 |
 | Agent Runtime | 上下文装配、工具调用、模型调用、运行审计 | `agent_runs`, `decisions`, `agent_memories` | 直接写持仓/观点 |
 | Conversation & Channel | 多轮对话、消息、IM 适配、投递 | `conversations`, `conversation_messages`, `channel_deliveries` | 业务规则、持仓计算 |
@@ -57,16 +57,40 @@
 
 ### 3.3 Position
 
+#### 现货（spot）
+
 - `positions` 是**当前读模型**，不是事实来源；事实来源是 `position_events`。
 - 每个持仓变更必须在同一事务内：写 event → 重算 positions → 写 immutable snapshot。
 - `position_events` 只追加；修正（CORRECTION）记录 `before_state` / `after_state`，不静默覆盖。
 - `position_snapshots` 不可变，供 Agent Run 固定引用；快照只保存持仓状态（数量、成本、已实现盈亏），**不把当时市价烘进快照**，市值/浮盈在分析时用对应行情快照计算，避免旧价格伪装成新估值。
-- v1 只支持现货；合约不塞进同一张表，未来用独立 `derivative_positions` 子域。
+
+#### USDT 本位永续（perpetual）
+
+- 使用独立的 `derivative_positions` / `derivative_position_events` / `derivative_position_snapshots`，**不与现货混表**。
+- v1 只支持**单向持仓**（LONG 或 SHORT 二选一），不支持双向/对冲模式。
+- 用户录入：`side`、`quantity_base`（以 BTC 等基础资产计）、`entry_price`、`leverage`、`margin`、`liquidation_price`、可选手续费。
+- **清算价只来自用户输入**，平台不估算、不推导；没有填就显示“未提供”。
+- 资金费率作为可选 `FUNDING` 事件记录，不自动计算。
+- 计算（使用当前 mark price）：
+  - `notional = quantity_base * mark_price`
+  - `uPnL_long = (mark - entry) * qty`；`uPnL_short = (entry - mark) * qty`
+  - `ROE = uPnL / margin`
+  - `liq_distance_long = (mark - liquidation) / mark`
+  - `liq_distance_short = (liquidation - mark) / mark`
+  - `<= 0` 表示已经触及/穿过清算价，必须高亮告警。
+- 快照保存持仓状态 + 当时 `mark_price` + 计算指标（因为风险指标依赖 mark），不可变。
+- 币本位、交割、期权、双向持仓不在 v1 范围。
+
+#### 共同不变量
+
+- 事件只追加；修正记录前后值。
+- 快照不可变，Agent Run 固定引用。
+- 金额/价格用 `NUMERIC` / `Decimal`；数量以基础资产计，UI 可展示 OKX 张数换算提示。
 
 ### 3.4 Agent Run 与 Decision
 
 - 每次分析/对话/解析创建一条 `agent_runs`，完成后不可变。
-- Run 必须固定：`thesis_version_id`、`position_snapshot_id`、`market_snapshot_id`、`prompt_version`、`model`、`input_digest`。
+- Run 必须固定：`thesis_version_id`、`position_snapshot_id`、`derivative_snapshot_id`（如有）、`market_snapshot_id`、`prompt_version`、`model`、`input_digest`。
 - 定时分析 Run 与 Decision 一对一（`decisions.agent_run_id` 唯一）；对话 Run 可以没有 Decision。
 - `decisions` 只追加；修正结论要产生新的 Run/Decision，不 UPDATE 旧记录。
 - `agent_memories` 只存 Agent 自己提炼的观察，带来源 Run 与置信度，**不等于用户观点**。
@@ -105,6 +129,7 @@
 | I12 | 过期行情不得伪装实时 | `staleness` 字段 + Prompt 规则 |
 | I13 | 密钥不进入日志/上下文 | 加密存储 + 日志脱敏 |
 | I14 | AI 润色不改变事实；原文与确认正文都保留 | `original_text` + `final_text` + `polish_agent_run_id` |
+| I15 | 合约清算价只来自用户输入，不由程序推导 | 字段可空 + UI 标注“未提供” |
 
 ---
 
@@ -124,6 +149,9 @@ erDiagram
     INVESTMENT_STREAMS ||--o{ INVESTMENT_THESES : "versions"
     INVESTMENT_STREAMS ||--o{ POSITION_EVENTS : "records"
     INVESTMENT_STREAMS ||--o{ POSITION_SNAPSHOTS : "snapshots"
+    INVESTMENT_STREAMS ||--o{ DERIVATIVE_POSITIONS : "perpetual"
+    DERIVATIVE_POSITIONS ||--o{ DERIVATIVE_POSITION_EVENTS : "records"
+    DERIVATIVE_POSITIONS ||--o{ DERIVATIVE_POSITION_SNAPSHOTS : "snapshots"
     INVESTMENT_STREAMS ||--o{ AGENT_RUNS : "runs"
     INVESTMENT_STREAMS ||--o{ DECISIONS : "yields"
     INVESTMENT_STREAMS ||--o{ CONVERSATIONS : "hosts"
@@ -132,6 +160,7 @@ erDiagram
 
     INVESTMENT_THESES ||--o{ AGENT_RUNS : "pinned by"
     POSITION_SNAPSHOTS ||--o{ AGENT_RUNS : "pinned by"
+    DERIVATIVE_POSITION_SNAPSHOTS ||--o{ AGENT_RUNS : "pinned by"
     MARKET_SNAPSHOTS ||--o{ AGENT_RUNS : "pinned by"
 
     AGENT_RUNS ||--o| DECISIONS : "produces"
@@ -196,7 +225,7 @@ instruments (
     asset_id        uuid not null references assets(id),
     provider        text not null,         -- binance
     symbol          text not null,         -- BTCUSDT
-    market_type     text not null,         -- SPOT（PERP 预留）
+    market_type     text not null,         -- SPOT / SWAP
     quote_currency  text not null,         -- USDT
     status          text not null default 'ACTIVE',
     meta            jsonb not null default '{}',
@@ -229,6 +258,7 @@ market_snapshots (
     fetched_at      timestamptz not null,  -- 我方采集时间
     staleness       text not null,         -- FRESH / STALE / UNKNOWN
     indicators      jsonb not null default '{}',
+    derivatives     jsonb not null default '{}', -- 仅 SWAP：mark_price/funding_rate/open_interest
     candle_coverage jsonb not null default '{}',
     raw             jsonb,
     created_at      timestamptz not null default now()
@@ -328,6 +358,67 @@ position_snapshots (
     source_event_id     uuid references position_events(id),
     created_at          timestamptz not null default now()
 );
+
+-- USDT 本位永续：单向持仓；清算价只来自用户输入
+derivative_positions (
+    id                  uuid primary key,
+    stream_id           uuid not null references investment_streams(id),
+    instrument_id       uuid not null references instruments(id),
+    side                text not null,      -- LONG / SHORT
+    quantity_base       numeric(38,18) not null default 0, -- 以 BTC 等基础资产计
+    entry_price         numeric(38,18) not null default 0,
+    leverage            numeric(10,4) not null,
+    margin_mode         text not null default 'ISOLATED', -- ISOLATED / CROSS（仅标签）
+    margin              numeric(38,18) not null default 0, -- USDT，用户录入
+    liquidation_price   numeric(38,18),     -- 用户录入；不估算
+    realized_pnl        numeric(38,18) not null default 0,
+    funding_fees        numeric(38,18) not null default 0,
+    version             integer not null default 1,
+    updated_at          timestamptz not null default now(),
+    unique (stream_id, instrument_id)
+);
+
+derivative_position_events (
+    id                  uuid primary key,
+    stream_id           uuid not null references investment_streams(id),
+    position_id         uuid not null references derivative_positions(id),
+    kind                text not null,      -- OPEN/INCREASE/REDUCE/CLOSE/ADJUST_MARGIN/FUNDING/CORRECTION
+    side                text not null,      -- LONG / SHORT
+    quantity_base       numeric(38,18),
+    price               numeric(38,18),
+    fee                 numeric(38,18) not null default 0,
+    margin_delta        numeric(38,18),
+    funding_amount      numeric(38,18),
+    occurred_at         timestamptz not null,
+    note                text,
+    before_state        jsonb,
+    after_state         jsonb,
+    resulting_snapshot_id uuid,
+    created_at          timestamptz not null default now()
+);
+
+derivative_position_snapshots (
+    id                  uuid primary key,
+    stream_id           uuid not null references investment_streams(id),
+    position_id         uuid not null references derivative_positions(id),
+    position_version    integer not null,
+    as_of               timestamptz not null,
+    side                text not null,
+    quantity_base       numeric(38,18) not null,
+    entry_price         numeric(38,18) not null,
+    leverage            numeric(10,4) not null,
+    margin_mode         text not null,
+    margin              numeric(38,18) not null,
+    liquidation_price   numeric(38,18),
+    mark_price          numeric(38,18) not null,
+    notional            numeric(38,18) not null,
+    unrealized_pnl      numeric(38,18) not null,
+    roe                 numeric(10,4) not null,
+    liq_distance_pct    numeric(10,4),      -- 用户未填清算价时为空
+    risk_budget_usage_pct numeric(10,4),
+    source_event_id     uuid references derivative_position_events(id),
+    created_at          timestamptz not null default now()
+);
 ```
 
 ### 5.5 Agent Run 与 Decision
@@ -336,13 +427,14 @@ position_snapshots (
 agent_runs (
     id                  uuid primary key,
     stream_id           uuid not null references investment_streams(id),
-    task_type           text not null,      -- MONITOR_ANALYSIS/CONVERSATION_REPLY/THESIS_PARSE
+    task_type           text not null,      -- MONITOR_ANALYSIS/CONVERSATION_REPLY/THESIS_PARSE/THESIS_POLISH
     status              text not null,      -- RUNNING/SUCCEEDED/FAILED/CANCELLED
     llm_provider_id     uuid references llm_providers(id),
     model               text,
     prompt_version      text not null,
     thesis_version_id   uuid references investment_theses(id),
     position_snapshot_id uuid references position_snapshots(id),
+    derivative_snapshot_id uuid references derivative_position_snapshots(id),
     market_snapshot_id  uuid references market_snapshots(id),
     conversation_id     uuid,               -- 对话任务才有
     input_digest        text,               -- 规范上下文的 sha256
@@ -550,6 +642,9 @@ audit_logs (
 | `investment_theses` | `(stream_id, version DESC)` | 历史版本 |
 | `position_events` | `(stream_id, occurred_at)` | 时间线 |
 | `position_snapshots` | `(stream_id, created_at DESC)` | 最近快照 |
+| `derivative_positions` | `UNIQUE(stream_id, instrument_id)`；`(stream_id)` | 单向持仓 |
+| `derivative_position_events` | `(stream_id, occurred_at)`；`(position_id, occurred_at)` | 事件时间线 |
+| `derivative_position_snapshots` | `(position_id, created_at DESC)` | 最近快照 |
 | `market_candles` | PK `(instrument_id, timeframe, open_time)` | K 线查询 |
 | `market_snapshots` | `(instrument_id, created_at DESC)` | 最近行情 |
 | `agent_runs` | `(stream_id, started_at DESC)`；`(conversation_id, started_at)` | 审计与对话 |
@@ -572,8 +667,9 @@ scheduler tick
   → 选择 stream + 当前 quote
   → 读取 ACTIVE Thesis (vN)
   → 读取最新 PositionSnapshot (vM)
-  → 计算指标，生成 MarketSnapshot
-  → 创建 AgentRun（固定 vN / vM / marketSnapshotId）
+  → 读取最新 DerivativeSnapshot (vD，如有)
+  → 计算指标，生成 MarketSnapshot（含 SWAP 观察：mark/funding/OI）
+  → 创建 AgentRun（固定 vN / vM / vD / marketSnapshotId）
   → 调模型 + 工具
   → 校验 Decision JSON
   → 保存 Decision（1:1）
@@ -588,7 +684,7 @@ scheduler tick
 用户消息
   → ConversationService 落 USER message
   → 创建 AgentRun(task=CONVERSATION_REPLY)，固定同一组版本引用
-  → ContextBuilder 装配：stream brief + ACTIVE Thesis + Position + 最近 Decision + 摘要 + 最近消息
+  → ContextBuilder 装配：stream brief + ACTIVE Thesis + Spot Position + Derivative Position + 衍生品观察 + 最近 Decision + 摘要 + 最近消息
   → 工具调用（只读 + 纯计算）
   → 流式或一次性生成
   → 落 ASSISTANT message，关联 agent_run_id
@@ -633,7 +729,7 @@ Thesis：
 | 表/字段 | 处理 |
 |---|---|
 | `news_articles`, `news_analyses` | 建空表与接口占位，v1 不抓取、不注入 |
-| `positions` 合约字段 | 不混入；未来 `derivative_positions` 子域 |
+| `positions` 合约字段 | 不混入；合约使用 `derivative_positions` 子域（v1 已实现 USDT 本位永续） |
 | `pgvector` / embedding | v1 不启用；`agent_memories` 先做文本 |
 | 多用户 / 认证 | 保留 `user_id`，auth 中间件后置 |
 | `proposals` | 建表预留；v1.0 对话只读，不产生记录；v1.2+ 渠道写操作时启用 |

@@ -1,7 +1,7 @@
 # 03 · Agent Runtime
 
 > 状态：草案 v0.1
-> 对应决策：D9（同一 Runtime）、D13（记忆边界）、D14（只读对话）、D15（语气）、D16（AI 润色）
+> 对应决策：D9（同一 Runtime）、D13（记忆边界）、D14（只读对话）、D15（语气）、D16（AI 润色）、D18（OKX）、D21/D22（永续）
 > 一句话：**模型只能看见程序给它的东西，只能通过工具拿事实，只能输出被 Schema 约束的结论。**
 
 ---
@@ -98,13 +98,14 @@ AgentRuntime
 **MONITOR_ANALYSIS**：
 
 ```text
-任务：基于给定上下文，判断当前是否需要对用户的 BTC 现货持仓/观察计划采取行动。
+任务：基于给定上下文，判断当前是否需要对用户的 BTC 现货持仓、USDT 本位永续持仓或观察计划采取行动。
 要求：
 1. 先读取上一轮 Decision，说明本次结论是否变化；无变化也要说明原因。
 2. 严格输出符合 Decision Schema 的 JSON，不要输出 Markdown。
 3. 数据不足时，decision 用 WAIT/REVIEW，data_quality 标 INSUFFICIENT，不得强行给结论。
 4. 建议必须与用户 Thesis 对齐或明确说明冲突；不得替用户改 Thesis。
-5. 只给建议，不执行交易。
+5. 若存在永续持仓，必须输出 `derivative_recommendation`，动作与当前方向一致；不得估算清算价，只能使用用户录入值。
+6. 只给建议，不执行交易。
 ```
 
 **CONVERSATION_REPLY**：
@@ -153,8 +154,10 @@ AgentRuntime
 |---|---|---|
 | Stream | 资产、Instrument、时区、监控配置 | DB |
 | Market | 最新 quote + 指标（1h/4h/1d）+ 数据质量 | MarketSnapshot |
-| Position | 数量、成本、市值、浮盈、风险预算占用 | PositionSnapshot + 计算 |
-| Thesis | ACTIVE 版本原文 + 结构化 + 版本号 | DB |
+| Derivatives | SWAP mark price / funding rate / open interest（观察，不参与盈亏） | MarketSnapshot |
+| Spot Position | 数量、成本、市值、浮盈、风险预算占用 | PositionSnapshot + 计算 |
+| Perp Position | 方向、数量、开仓价、杠杆、保证金、用户清算价、uPnL、ROE、距清算价 | DerivativeSnapshot + 计算 |
+| Thesis | ACTIVE 版本原文 + 结构化 + `derivative_intent` + 版本号 | DB |
 | History | 最近 3 条 Decision（含上轮结论） | DB |
 | Memory | 最近观察（可选，≤10 条） | DB |
 | Task | 任务说明 + 输出 Schema | 代码 |
@@ -168,7 +171,7 @@ AgentRuntime
 | 块 | 内容 |
 |---|---|
 | System | 固定 |
-| Stream brief | 资产、报价、指标、持仓、风险、Thesis 摘要、最近决策 |
+| Stream brief | 资产、报价、指标、衍生品观察、现货/永续持仓、风险、Thesis 摘要、最近决策 |
 | Summary | 该 conversation 的滚动摘要 |
 | Messages | 最近 12 条（USER/ASSISTANT，不含 TOOL 原文） |
 | User question | 当前消息 |
@@ -253,6 +256,7 @@ class Tool(Protocol):
 | `get_asset_overview` | `{}` | price, change_24h, high/low, market_time, fetched_at, staleness |
 | `get_price_history` | `timeframe`, `limit<=300` | OHLCV 数组 + coverage |
 | `get_technical_indicators` | `timeframes[]` | MA/EMA/RSI/MACD/volatility + as_of |
+| `get_derivatives_overview` | `{}` | mark price / funding rate / open interest / 数据时间 |
 
 **Thesis**
 
@@ -269,6 +273,10 @@ class Tool(Protocol):
 | `get_position_history` | `limit<=50` | 事件时间线 |
 | `calculate_position_risk` | `{}` | 敞口、集中度、预算占用、回撤距离 |
 | `simulate_position_change` | `side`, `quantity`, `assumed_price?` | 假设后的数量/成本/敞口/浮盈；**纯计算，不落库** |
+| `get_derivative_positions` | `{}` | 方向、数量、开仓价、杠杆、保证金、用户清算价、uPnL、ROE、距清算价 |
+| `get_derivative_position_history` | `limit<=50` | 合约事件时间线 |
+| `calculate_derivative_risk` | `{}` | notional、保证金占用、清算缓冲、风险预算 |
+| `simulate_derivative_change` | `action`, `size_change_pct?`, `assumed_mark?` | 假设动作后的 uPnL/清算距离；**纯计算，不落库** |
 
 **Decision / Memory**
 
@@ -407,7 +415,10 @@ stateDiagram-v2
    - `data_quality=INSUFFICIENT` → `decision` 只能是 `WAIT`/`REVIEW`，`confidence<=0.5`；
    - `evidence_for` 至少 1 条（除非数据不足）；
    - `thesis_alignment.status` 必填；
-   - `changes_since_previous` 必须引用真实变化。
+   - `changes_since_previous` 必须引用真实变化；
+   - 有永续持仓时 `derivative_recommendation` 必填，动作必须匹配当前方向（多/空）；
+   - `OPEN_*` 仅在没有对应持仓时允许；`CLOSE_*` 必须有持仓；禁止同一轮同时开多与开空；
+   - 不得输出估算的清算价，只能引用用户录入值。
 4. 失败重试 1 次（附带错误信息要求修正）；仍失败 → Run FAILED，不写 Decision，不通知。
 
 ### 8.2 对话任务

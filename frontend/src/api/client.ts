@@ -13,6 +13,21 @@ export interface Meta {
   capabilities: string[]
 }
 
+export interface Instrument {
+  provider: string
+  symbol: string
+  market_type: string
+  quote_currency: string
+}
+
+export interface Asset {
+  id: string
+  symbol: string
+  name: string
+  kind: string
+  instruments: Instrument[]
+}
+
 export interface Stream {
   id: string
   name: string
@@ -21,6 +36,11 @@ export interface Stream {
   monitor_interval_minutes: number
   agent_enabled: boolean
   created_at: string
+  asset_symbol: string
+  asset_name: string
+  provider: string
+  instrument_symbol: string
+  market_type: string
 }
 
 async function request<T>(path: string): Promise<T> {
@@ -36,5 +56,6 @@ async function request<T>(path: string): Promise<T> {
 export const api = {
   health: () => request<Health>('/health'),
   meta: () => request<Meta>('/api/v1/meta'),
+  assets: () => request<Asset[]>('/api/v1/assets'),
   streams: () => request<Stream[]>('/api/v1/streams'),
 }

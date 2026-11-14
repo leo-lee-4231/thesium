@@ -1,6 +1,6 @@
 # 00 · 架构决策记录（ADR）
 
-> 状态：D1–D17 已确认（2026-11-14 口径确认）。
+> 状态：D1–D22 已确认（2026-11-15 口径确认）。
 > 日期：2026-11-14
 > 关联：`01-domain-model.md`、`07-conversation-and-channels.md`
 
@@ -10,7 +10,7 @@
 
 Thesium 的核心不是「AI 自动寻找买卖点」，而是让 AI 持续理解一个投资者的**真实持仓、投资目标与个人观点**，在市场变化或用户改口后重新审视原有判断，并给出有依据、可追溯的建议。
 
-基线方案（交接文档）已经确定：单租户、BTC 现货、单个 Investment Stream、Binance 公共行情、v1 不做新闻、Thesis 分级确认、只对重要变化发通知、AGPL-3.0。
+基线方案（交接文档）确定：单租户、BTC 现货、单个 Investment Stream、Binance 公共行情、v1 不做新闻、Thesis 分级确认、只对重要变化发通知、AGPL-3.0。**其中行情源与持仓范围已由 D18–D22 修订。**
 
 本次新增两项产品诉求：
 
@@ -29,8 +29,8 @@ Thesium 的核心不是「AI 自动寻找买卖点」，而是让 AI 持续理�
 
 | # | 主题 | 决策 | 状态 |
 |---|---|---|---|
-| D1 | 首版持仓类型 | 仅现货；模型预留合约子类型，不做保证金/清算计算 | Accepted |
-| D2 | 行情源 | Binance 公共 API，BTC/USDT，1h/4h/1d，免 Key | Accepted |
+| D1 | 首版持仓类型 | 现货 + **USDT 本位永续**（多/空）；币本位、交割、期权不做；清算价由用户输入，本地只算风险距离 | Accepted（D21 扩充） |
+| D2 | 行情源 | 原 Binance 公共 API；**已由 D18 改为 OKX 公共 API** | Superseded by D18 |
 | D3 | 新闻 | v1 不实现，只建表预留；避免 Prompt Injection 主入口 | Accepted |
 | D4 | Thesis 确认粒度 | 分级：MATERIAL 字段变化必须确认；MINOR 文字补充可直接生效 | Accepted |
 | D5 | 通知策略 | 只发重要变化；4h 冷却 + 去重；日报默认关闭 | Accepted |
@@ -46,6 +46,11 @@ Thesium 的核心不是「AI 自动寻找买卖点」，而是让 AI 持续理�
 | D15 | 对话语气 | 只读建议 + 情景化操作框架 + 情绪支持；不预测、不催促、不替代专业帮助 | Accepted |
 | D16 | Thesis 编辑 | 独立编辑窗口；AI 可润色表达，用户可编辑并最终确认；原文与确认正文双保存 | Accepted |
 | D17 | 数据库 | 保持 PostgreSQL 16；评估过 SQLite，但金额精度/队列/方言成本不值得；用小配置与 pg_dump 降低运维重量 | Accepted |
+| D18 | 行情 Provider | 首个实现 OKX 公共 API（现货 + SWAP）；Binance 仅保留适配器接口，后续可选 | Accepted |
+| D19 | 合约观察 | 读 mark price / funding rate / open interest / 4h·1d K 线，作为中长线背景；不参与盈亏计算 | Accepted |
+| D20 | 用户界面命名 | 界面用 **Investment Product / 投资产品**；内部保留 `InvestmentStream`；一资产一卡片，卡内再分现货/合约与未来策略 | Accepted |
+| D21 | 合约持仓 | 仅 USDT 本位永续、单向持仓；用户录入数量/开仓价/杠杆/保证金/清算价；本地算 uPnL、ROE、距清算价距离；不估算清算价 | Accepted |
+| D22 | 合约建议 | Decision 增加 `derivative_recommendation`：开多/加多/减多/平多、开空/加空/减空/平空、调保证金；与当前持仓方向校验 | Accepted |
 
 ---
 
@@ -53,8 +58,8 @@ Thesium 的核心不是「AI 自动寻找买卖点」，而是让 AI 持续理�
 
 | # | 决策与后果 |
 |---|---|
-| D1 | 现货模型只计算数量、成本均价、市值、未实现/已实现盈亏和预算占用。合约的保证金、资金费率、清算价不在 v1 范围，避免「看起来支持、算出来是错的」。 |
-| D2 | 行情 Provider 按 Instrument 工作；`provider + symbol + market_type` 唯一。行情必须带 `market_time`、`fetched_at` 和 `staleness`。 |
+| D1 | 现货：数量、成本均价、市值、未实现/已实现盈亏、预算占用。USDT 本位永续：方向、数量、开仓价、杠杆、保证金、**用户录入的清算价**；本地计算 uPnL、ROE、距清算价距离。不估算清算价，不做币本位/交割/期权。 |
+| D2 | 行情 Provider 按 Instrument 工作；`provider + symbol + market_type` 唯一；首个 Provider 为 OKX（SPOT + SWAP）。行情必须带 `market_time`、`fetched_at` 和 `staleness`。 |
 | D3 | 只建 `news_articles` / `news_analyses` 空表与接口占位，不抓取、不注入 Prompt。新闻是后续版本的高风险增量。 |
 | D4 | 见 `02-thesis.md`：MATERIAL = 方向、时间周期、目标价/情景、风险约束、仓位意图；MINOR = 补充说明、澄清、关注问题。 |
 | D5 | 程序侧决策通知，不由 LLM 单独决定。冷却、去重、优先级、数据质量检查都在服务层。 |
@@ -299,16 +304,150 @@ Thesium 的核心不是「AI 自动寻找买卖点」，而是让 AI 持续理�
 
 ---
 
+### D18 · 首个行情 Provider 改为 OKX 公共 API
+
+**背景**：交接文档 D2 选的是 Binance，但用户日常使用 OKX，且 Binance 公共 API 在部分网络不可达。这不是技术必需，而是使用习惯与可达性问题。
+
+**决策**：
+
+- 首个实现 `OKXProvider`，只使用公共行情接口，不需要 API Key。
+- 首批 Instrument：`BTC-USDT`（SPOT）、`BTC-USDT-SWAP`（SWAP）；ETH 后续同构加入。
+- `Instrument` 继续用 `provider + symbol + market_type` 唯一；Binance 仅保留适配器接口，不在 v1 实现。
+- OKX 日线边界可能与 UTC 不同；内部统一存 UTC，必要时由 1H/4H 聚合出 UTC 日线，避免边界歧义。
+
+**理由**：
+
+- 用户实际使用 OKX，数据源与交易习惯一致。
+- 公共接口免 Key、支持现货与永续、字段足够中长线分析。
+- 保留 Provider 接口，不把领域模型绑死在 OKX。
+
+**后果**：
+
+- P1 需要验证 OKX 的限频、字段、时间戳与 K 线边界。
+- Provider 契约测试覆盖 SPOT 与 SWAP；Binance 留待后续。
+
+---
+
+### D19 · 合约只做“观察数据”，不混入盈亏
+
+**背景**：用户关心中长线的杠杆与情绪背景，但不需要超短线的盘口/逐笔精度。
+
+**决策**：
+
+- 从 OKX 读取 SWAP 的 mark price、funding rate、open interest，可选 basis。
+- 这些数据作为 Agent 上下文中的“杠杆/情绪背景”，**不参与**现货或合约持仓的 PnL 计算。
+- UI 明确标注“观察数据”，与“持仓数据”分开。
+
+**理由**：
+
+- 观察数据能提升中长线判断质量，但不应与账本混在一起。
+- 避免把 funding/OI 误当成持仓成本或盈亏。
+
+**后果**：
+
+- `market_snapshots` 增加衍生品观察字段；与 `derivative_positions` 的计算分离。
+
+---
+
+### D20 · 用户界面用 Investment Product，内部保留 Stream
+
+**背景**：用户认为 “Investment Stream” 不贴合，界面上应该看到关注资产（BTC、ETH、某只美股），一张卡点进去查看、问答、配置。
+
+**决策**：
+
+- 用户界面统一使用 **Investment Product / 投资产品**；卡片按“一个资产一张”展示。
+- 内部聚合保留 `InvestmentStream`：它承载该资产的 Thesis、持仓、分析历史；未来同一资产的多套策略（长期/波段）作为产品内的 Stream Tab。
+- v1 产品与 Stream 1:1；API 路径暂时保留 `/streams`，不为了文案改表名。
+- 界面文案不出现 “Stream” 这个词。
+
+**理由**：
+
+- 用户语言更自然；领域模型不必为 UI 文案返工。
+- 同一资产多策略是真实需求，Stream 仍有存在价值。
+
+**后果**：
+
+- 文档与代码中需要维护“Product（UI）/ Stream（domain）”的映射。
+- 未来若确实要重命名表，再做一次性迁移。
+
+---
+
+### D21 · 支持 USDT 本位永续持仓；清算价由用户输入
+
+**背景**：用户希望合约持仓也能记录和计算，但不需要平台去猜交易所的保证金档位。
+
+**决策**：
+
+- v1 只支持 **USDT 本位永续、单向持仓**（long/short 二选一）；币本位、交割、期权、双向持仓不做。
+- 用户录入：方向、数量（以 BTC 等基础资产计）、开仓均价、杠杆、保证金、**清算价**；可选手续费。
+- 本地计算：notional、未实现盈亏、ROE、保证金占用、距清算价百分比、风险预算占用。
+- **不估算清算价**：清算价以用户从交易软件看到的值为准；没有填就显示“未提供”，不猜。
+- 资金费率作为可选流水事件记录，不自动计算。
+- 新增 `derivative_positions` / `derivative_position_events` / `derivative_position_snapshots`，不与现货 `positions` 混表。
+
+**理由**：
+
+- 用户输入 + mark price 足以得到可信的 PnL 与风险距离。
+- 交易所清算价依赖风险档位/保证金模式/费用，平台自行估算反而会制造“假精确”。
+- 单向持仓先覆盖主流用法，避免双向/对冲模式的复杂语义。
+
+**后果**：
+
+- P2 增加合约持仓与风险计算；P4/P5 的上下文和工具需要覆盖两类持仓。
+- 数量单位需要明确（基础资产数量 vs 张数）；v1 用基础资产数量，UI 可显示 OKX 张数换算提示。
+
+---
+
+### D22 · Decision 增加合约建议，但必须与持仓方向一致
+
+**背景**：有了合约持仓后，单一 `BUY/SELL` 语义不够：加现货、开多、平多、开空是不同动作。
+
+**决策**：
+
+- 保留整体 `decision`（BUY/SELL/HOLD/REDUCE/WAIT/REVIEW）作为摘要。
+- 增加可选 `derivative_recommendation`：
+
+```json
+{
+  "action": "REDUCE_LONG",
+  "size_change_pct": "25",
+  "rationale": "……",
+  "invalidation_conditions": []
+}
+```
+
+- 动作枚举：`OPEN_LONG` / `INCREASE_LONG` / `REDUCE_LONG` / `CLOSE_LONG` / `OPEN_SHORT` / `INCREASE_SHORT` / `REDUCE_SHORT` / `CLOSE_SHORT` / `ADJUST_MARGIN` / `HOLD` / `NONE`。
+- 校验：单向持仓；`OPEN_*` 只在无持仓时；`INCREASE/REDUCE/CLOSE` 必须匹配当前方向；`CLOSE_*` 必须有持仓；禁止同一轮同时开多与开空。
+- 有合约持仓时，`derivative_recommendation` 必填（可以是 `HOLD`）；无持仓时可为 `NONE`。
+- 非 `HOLD/NONE` 的合约建议默认 HIGH，进入通知策略。
+
+**理由**：
+
+- 避免“BUY 到底是买现货还是开多”的歧义。
+- 让审计能回答“当时对哪个方向、哪个动作给了建议”。
+
+**后果**：
+
+- Decision Schema、Validator、通知策略、对话上下文都要扩展。
+- 图标/文案需要把“现货建议”和“合约建议”分开显示。
+
+---
+
 ## 5. 已决定（2026-11-14）
 
 | # | 问题 | 决定 |
 |---|---|---|
-| Q1 | v1.0 范围 | **核心闭环 + Web 对话**；飞书放 v1.1 |
+| Q1 | v1.0 范围 | **核心闭环 + Web 对话 + USDT 本位永续持仓/建议**；飞书放 v1.1 |
 | Q2 | 首个 IM 渠道 | **飞书**；个人微信不做；企业微信/公众号后续 |
 | Q3 | 对话权限 | **只读建议**；可基于 Thesis（及未来 Proposal）给操作策略与情绪支持；不创建 Proposal、不改数据 |
 | Q4 | 重要决策 IM 推送 | 暂定 **邮件 + 飞书（v1.1 起）**，实现前再确认 |
 | Q5 | Thesis 编辑方式 | **独立编辑窗口**；AI 可润色/整理；用户可编辑并最终确认；对话仍只读 |
 | Q6 | 数据库 | **PostgreSQL 16**；SQLite 评估后不采用；用 small profile + `make backup` 降低重量 |
+| Q7 | 行情 Provider | **OKX 公共 API**（SPOT + SWAP）；Binance 仅保留接口 |
+| Q8 | 合约类型 | **仅 USDT 本位永续、单向持仓**；币本位/交割/期权不做 |
+| Q9 | 清算价来源 | **仅用户输入**；不估算，不猜交易所风险档位 |
+| Q10 | 合约建议 | **要结构化建议**：`derivative_recommendation`，动作与持仓方向校验 |
+| Q11 | 产品卡片 | **一资产一卡片**；卡内再分现货/合约与未来 Stream |
 
 仍待确认：Q4 的默认开关（是否默认把 HIGH/URGENT 决策推到飞书），以及飞书侧是否只推送摘要。它不影响领域模型，可在 v1.1 前决定。
 
@@ -321,7 +460,11 @@ Thesium 的核心不是「AI 自动寻找买卖点」，而是让 AI 持续理�
 | 数据库 | PostgreSQL 16（small profile） | — | SQLite 再评估 |
 | Thesis 版本 + 分级确认 | ✅ | — | — |
 | Thesis 编辑器 + AI 润色/整理 | ✅ 独立窗口 | — | — |
-| 持仓事件 + 快照 + 风险 | ✅ | — | 合约 |
+| 行情 | ✅ OKX SPOT + SWAP | — | 多 Provider |
+| 合约观察（mark/funding/OI） | ✅ | — | basis/更多指标 |
+| 持仓事件 + 快照 + 风险 | ✅ 现货 + USDT 永续 | — | 币本位/期权 |
+| 合约结构化建议 | ✅ `derivative_recommendation` | — | 双向/对冲 |
+| 产品卡片（一资产一卡） | ✅ | — | 卡内多 Stream |
 | 定时分析 + Decision | ✅ | — | 新闻分析 |
 | 邮件通知 | ✅ | — | 日报 |
 | Web Dashboard | ✅ | — | 审计视图增强 |

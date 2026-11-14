@@ -1,7 +1,7 @@
 # 07 · 对话与多渠道接入
 
 > 状态：v0.1（范围已确认，2026-11-14）
-> 对应决策：`00-decisions.md` D9–D16
+> 对应决策：`00-decisions.md` D9–D22
 > 一句话：**对话是思考空间，Thesis 是承诺；对话只读，渠道只是运输方式。**
 
 ---
@@ -232,15 +232,20 @@ sequenceDiagram
 | `get_asset_overview` | ✅ | ✅ | ✅ | 报价 + 24h + 数据质量 |
 | `get_price_history` | ✅ | ✅ | ✅ | 限量（≤300 根），只读 |
 | `get_technical_indicators` | ✅ | ✅ | ✅ | 程序计算，不由模型推 |
+| `get_derivatives_overview` | ✅ | ✅ | ✅ | mark/funding/OI 观察 |
 | `get_investment_thesis` | ✅ | ✅ | ✅ | 只返回 ACTIVE 版本 |
 | `get_thesis_history` | ✅ | ✅ | ✅ | 版本对比 |
 | `get_positions` | ✅ | ✅ | ✅ | 当前快照 |
 | `get_position_history` | ✅ | ✅ | ✅ | 事件时间线 |
 | `calculate_position_risk` | ✅ | ✅ | ✅ | 敞口/浮盈/预算占用 |
+| `get_derivative_positions` | ✅ | ✅ | ✅ | 方向/保证金/用户清算价 |
+| `get_derivative_position_history` | ✅ | ✅ | ✅ | 合约事件时间线 |
+| `calculate_derivative_risk` | ✅ | ✅ | ✅ | uPnL/ROE/距清算价 |
 | `get_recent_decisions` | ✅ | ✅ | ✅ | 最近 N 条 |
 | `get_previous_analysis` | ✅ | ✅ | ✅ | 单次 Run 详情 |
 | `get_pending_proposals` | ✅ | ✅ | ✅ | 只读；v1.0 通常为空 |
 | `simulate_position_change` | ❌ | ✅ | ✅ | 纯计算，不落库；用于 if-then |
+| `simulate_derivative_change` | ❌ | ✅ | ✅ | 纯计算，不落库；不估算清算价 |
 | `save_investment_observation` | ✅ | ❌ | ❌ | 仅监控；对话不写 |
 | `propose_thesis_update` | ❌ | ❌ | ❌ | v1.2+ 预留 |
 | `propose_position_event` | ❌ | ❌ | ❌ | v1.2+ 预留 |
@@ -259,9 +264,9 @@ sequenceDiagram
 
 ### 7.6.4 只读对话的边界
 
-- **可以**：查行情、指标、持仓、论点、历史决策、待确认草案；做纯计算的情景模拟；讨论操作框架；情绪支持。
-- **不可以**：创建/修改 Thesis、记录成交、修正持仓、创建告警、写 Observation、发通知。
-- 用户说「帮我记一下 / 改成看空」：Agent 说明不能代写，指出具体修改路径（Thesis 编辑器或持仓表单），可以给出建议文本，但不落库。
+- **可以**：查行情、指标、衍生品观察、现货/永续持仓、论点、历史决策、待确认草案；做纯计算的情景模拟；讨论操作框架；情绪支持。
+- **不可以**：创建/修改 Thesis、记录现货/合约成交、调保证金、修正持仓、创建告警、写 Observation、发通知。
+- 用户说「帮我记一下 / 改成看空 / 帮我加保证金」：Agent 说明不能代写，指出具体修改路径（Thesis 编辑器、现货/合约持仓表单），可以给出建议文本，但不落库。
 - 用户说「帮我润色一下」：Agent 说明润色在 Thesis 编辑器的「AI 润色」里，对话不触发、不保存。
 - 用户问「现在该买还是卖」：可以给情景化框架与风险提示，但不给保证性指令；明确「最终决定与执行由你完成」。
 - 所有数字来自工具；所有价格带时间戳；没有数据就承认没有。
@@ -610,7 +615,9 @@ Thesis v3 · 行情 15:00Z · 建议非保证 · /why 查看依据
 7. **情绪支持**：说「我有点慌，要不要清仓？」→ 先承认情绪，再引用持仓/成本/Thesis/风险预算，给 2–3 个 if-then 选项与代价；不预测、不催促、不羞辱。
 8. **数据异常**：行情过期时，对话明确说明，不给出确定性的精确买卖点。
 9. **审计**：任意一条回答都能打开 Run 详情，看到版本、工具、时间戳与模型。
-10. **无副作用**：任意多轮对话结束后，`investment_theses`、`position_events`、`notifications` 均无新增（消息与 Agent Run 除外）。
+10. **无副作用**：任意多轮对话结束后，`investment_theses`、`position_events`、`derivative_position_events`、`notifications` 均无新增（消息与 Agent Run 除外）。
+11. **永续持仓**：录入多/空、杠杆、保证金、用户清算价 → 风险卡显示 uPnL/ROE/距清算价；方向冲突被拒；未填清算价不显示假数字。
+12. **合约建议**：有永续持仓时 Decision 必须含 `derivative_recommendation`，动作与方向一致；非 HOLD/NONE 进入 HIGH 通知。
 
 ### 7.13.3 非目标提醒
 
@@ -626,9 +633,12 @@ Thesis v3 · 行情 15:00Z · 建议非保证 · /why 查看依据
 
 | # | 问题 | 状态 |
 |---|---|---|
-| Q1 | v1.0 范围 | **已定**：核心 + Web 只读对话；飞书 v1.1 |
+| Q1 | v1.0 范围 | **已定**：核心 + Web 只读对话 + USDT 永续；飞书 v1.1 |
 | Q2 | 首个 IM 渠道 | **已定**：飞书；个人微信不做 |
 | Q3 | 对话权限 | **已定**：只读；可给操作框架与情绪支持；不写数据 |
 | Q4 | 飞书是否默认推送 HIGH/URGENT 决策 | 待 v1.1 前确认；建议默认开启、只推摘要与链接 |
+| Q5 | 行情 Provider | **已定**：OKX 公共 API（SPOT + SWAP） |
+| Q6 | 合约范围 | **已定**：USDT 本位永续、单向、用户输入清算价；只做观察 + 持仓/风险 + 结构化建议 |
+| Q7 | 产品卡片 | **已定**：一资产一卡；卡内再分现货/合约 |
 
-Q1–Q3 已经锁定，不再影响领域模型；Q4 只影响 v1.1 的通知默认配置与用户偏好界面。
+Q1–Q3、Q5–Q7 已经锁定，不再影响领域模型；Q4 只影响 v1.1 的通知默认配置与用户偏好界面。

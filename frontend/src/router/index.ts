@@ -9,6 +9,11 @@ const router = createRouter({
       component: () => import('@/views/DashboardView.vue'),
     },
     {
+      path: '/products/:symbol',
+      name: 'product',
+      component: () => import('@/views/ProductView.vue'),
+    },
+    {
       path: '/:pathMatch(.*)*',
       redirect: '/',
     },

@@ -1,7 +1,7 @@
 # 05 · REST API
 
 > 状态：草案 v0.1
-> 对应决策：D6（单租户）、D10（Headless 核心）、D14（只读对话）、D16（AI 润色）
+> 对应决策：D6（单租户）、D10（Headless 核心）、D14（只读对话）、D16（AI 润色）、D18（OKX）、D21（永续持仓）
 > 约定：`/api/v1`；JSON；UTC ISO8601；金额/价格用字符串 Decimal；UUID。
 
 ---
@@ -29,6 +29,7 @@
 需要幂等的写接口支持 `Idempotency-Key` 请求头（客户端生成 UUID）：
 
 - `POST /streams/{id}/position-events`
+- `POST /streams/{id}/derivative-position-events`
 - `POST /streams/{id}/thesis/versions`
 - `POST /conversations/{id}/messages`
 - `POST /streams/{id}/analyze`
@@ -167,17 +168,38 @@ POST /api/v1/settings/email/test
 
 ---
 
-## 6. Stream
+## 6. Stream（UI: Investment Product）
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/streams` | 列表 |
+| GET | `/streams` | 列表（含资产/行情标的） |
 | POST | `/streams` | 创建（首版只允许一个 ACTIVE） |
 | GET | `/streams/{id}` | 详情 |
 | PATCH | `/streams/{id}` | 名称、监控间隔、agent_enabled |
 | POST | `/streams/{id}/pause` | 暂停监控 |
 | POST | `/streams/{id}/resume` | 恢复 |
 | GET | `/streams/{id}/overview` | Dashboard 聚合 |
+
+资产目录：
+
+```http
+GET /api/v1/assets
+```
+
+```json
+[
+  {
+    "id": "uuid",
+    "symbol": "BTC",
+    "name": "Bitcoin",
+    "kind": "CRYPTO",
+    "instruments": [
+      {"provider": "okx", "symbol": "BTC-USDT", "market_type": "SPOT", "quote_currency": "USDT"},
+      {"provider": "okx", "symbol": "BTC-USDT-SWAP", "market_type": "SWAP", "quote_currency": "USDT"}
+    ]
+  }
+]
+```
 
 创建请求：
 
@@ -186,8 +208,8 @@ POST /api/v1/settings/email/test
   "name": "BTC 长期配置",
   "asset_symbol": "BTC",
   "instrument": {
-    "provider": "binance",
-    "symbol": "BTCUSDT",
+    "provider": "okx",
+    "symbol": "BTC-USDT",
     "market_type": "SPOT"
   },
   "timezone": "Asia/Shanghai",
@@ -219,6 +241,22 @@ POST /api/v1/settings/email/test
     "market_value": "45620.00",
     "unrealized_pnl": "4620.00"
   },
+  "derivative_position": {
+    "side": "LONG",
+    "quantity_base": "0.20000000",
+    "entry_price": "88000.00",
+    "leverage": "3",
+    "margin": "6000.00",
+    "liquidation_price": "65000.00",
+    "unrealized_pnl": "648.00",
+    "liq_distance_pct": "28.76"
+  },
+  "derivatives_market": {
+    "mark_price": "91240.00",
+    "funding_rate": "0.0001",
+    "open_interest": "12345.67",
+    "as_of": "2026-11-14T15:00:00Z"
+  },
   "thesis": {
     "version": 3,
     "status": "ACTIVE",
@@ -242,12 +280,13 @@ POST /api/v1/settings/email/test
 | GET | `/streams/{id}/market` | 最新报价 + 数据质量 |
 | GET | `/streams/{id}/market/candles?timeframe=1h&limit=200` | K 线；`limit<=300` |
 | GET | `/streams/{id}/market/indicators?timeframes=1h,4h,1d` | 指标快照 |
+| GET | `/streams/{id}/market/derivatives` | SWAP mark/funding/open interest（观察） |
 
 K 线响应：
 
 ```json
 {
-  "instrument": {"provider": "binance", "symbol": "BTCUSDT", "timeframe": "1h"},
+  "instrument": {"provider": "okx", "symbol": "BTC-USDT", "timeframe": "1h"},
   "candles": [
     {"open_time": "2026-11-14T14:00:00Z", "open": "91000.0", "high": "91400.0", "low": "90800.0", "close": "91240.0", "volume": "123.45"}
   ],
@@ -266,6 +305,21 @@ K 线响应：
     "4h": {"rsi14": "51.0", "ema20": "88500.0", "macd_hist": "80.0"},
     "1d": {"trend": "UP", "rsi14": "62.0"}
   },
+  "staleness": "FRESH"
+}
+```
+
+衍生品观察：
+
+```json
+{
+  "instrument": {"provider": "okx", "symbol": "BTC-USDT-SWAP", "market_type": "SWAP"},
+  "mark_price": "91260.00",
+  "funding_rate": "0.0001",
+  "next_funding_time": "2026-11-14T16:00:00Z",
+  "open_interest": "12345.67",
+  "market_time": "2026-11-14T15:00:00Z",
+  "fetched_at": "2026-11-14T15:00:12Z",
   "staleness": "FRESH"
 }
 ```
@@ -399,15 +453,20 @@ POST /api/v1/thesis/versions/{id}/reject
 
 ---
 
-## 9. 持仓
+## 9. 持仓（现货 + USDT 永续）
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/streams/{id}/positions` | 当前持仓快照 |
-| GET | `/streams/{id}/position-events` | 事件时间线 |
-| POST | `/streams/{id}/position-events` | 记录成交 / 修正 |
-| GET | `/streams/{id}/position-snapshots` | 不可变快照列表 |
-| POST | `/streams/{id}/positions/simulate` | 只读情景计算 |
+| GET | `/streams/{id}/positions` | 当前现货持仓快照 |
+| GET | `/streams/{id}/position-events` | 现货事件时间线 |
+| POST | `/streams/{id}/position-events` | 记录现货成交 / 修正 |
+| GET | `/streams/{id}/position-snapshots` | 现货不可变快照列表 |
+| POST | `/streams/{id}/positions/simulate` | 现货只读情景计算 |
+| GET | `/streams/{id}/derivative-positions` | 当前永续持仓 |
+| GET | `/streams/{id}/derivative-position-events` | 永续事件时间线 |
+| POST | `/streams/{id}/derivative-position-events` | 开/加/减/平/调保证金/修正 |
+| GET | `/streams/{id}/derivative-position-snapshots` | 永续不可变快照列表 |
+| POST | `/streams/{id}/derivative-positions/simulate` | 永续只读情景计算 |
 
 ### 9.1 记录成交
 
@@ -466,6 +525,74 @@ POST /api/v1/streams/{id}/positions/simulate
 ```
 
 不落库；对话的 `simulate_position_change` 复用同一服务。
+
+### 9.4 记录永续持仓
+
+```http
+POST /api/v1/streams/{id}/derivative-position-events
+Idempotency-Key: 3c9...
+{
+  "kind": "OPEN",
+  "side": "LONG",
+  "quantity_base": "0.20000000",
+  "price": "88000.00",
+  "leverage": "3",
+  "margin_mode": "ISOLATED",
+  "margin": "6000.00",
+  "liquidation_price": "65000.00",
+  "fee": "2.50",
+  "occurred_at": "2026-11-14T15:10:00Z"
+}
+```
+
+响应 `201`：
+
+```json
+{
+  "position": {
+    "id": "uuid",
+    "side": "LONG",
+    "quantity_base": "0.20000000",
+    "entry_price": "88000.00",
+    "leverage": "3",
+    "margin": "6000.00",
+    "liquidation_price": "65000.00",
+    "version": 1
+  },
+  "snapshot": {
+    "id": "uuid",
+    "mark_price": "91240.00",
+    "unrealized_pnl": "648.00",
+    "roe": "10.8",
+    "liq_distance_pct": "28.76"
+  }
+}
+```
+
+规则：
+
+- 只支持 `LONG` / `SHORT` 单向；已有相反方向持仓 → `409 POSITION_SIDE_CONFLICT`。
+- `liquidation_price` 是用户从交易软件录入的值，服务端不估算；可空，但为空时风险字段为 `null`。
+- `kind`：`OPEN` / `INCREASE` / `REDUCE` / `CLOSE` / `ADJUST_MARGIN` / `FUNDING` / `CORRECTION`。
+- 修正必须带 `before_state` / `after_state`，不允许静默覆盖。
+
+### 9.5 永续情景模拟（只读）
+
+```http
+POST /api/v1/streams/{id}/derivative-positions/simulate
+{
+  "action": "REDUCE_LONG",
+  "size_change_pct": "25",
+  "assumed_mark": "90000.00"
+}
+→ 200 {
+  "before": {"quantity_base": "0.2", "unrealized_pnl": "648.00", "liq_distance_pct": "28.76"},
+  "after": {"quantity_base": "0.15", "unrealized_pnl": "486.00", "liq_distance_pct": "28.76"},
+  "margin": "6000.00"
+}
+```
+
+不落库；不返回估算清算价，只返回用户录入清算价下的距离。
 
 ---
 

@@ -1,30 +1,44 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 
-import { api, type Health, type Meta, type Stream } from '@/api/client'
+import { api, type Asset, type Health, type Meta, type Stream } from '@/api/client'
 
 const health = ref<Health | null>(null)
 const meta = ref<Meta | null>(null)
+const assets = ref<Asset[]>([])
 const streams = ref<Stream[]>([])
 const error = ref<string | null>(null)
 const loading = ref(true)
 
 const apiOnline = computed(() => health.value?.status === 'ok')
 
+function streamFor(symbol: string): Stream | undefined {
+  return streams.value.find((stream) => stream.asset_symbol === symbol)
+}
+
+function instrumentLabel(asset: Asset): string {
+  if (asset.instruments.length === 0) return '未配置行情'
+  return asset.instruments
+    .map((instrument) => `${instrument.provider.toUpperCase()} ${instrument.symbol} · ${instrument.market_type}`)
+    .join(' / ')
+}
+
 async function load(): Promise<void> {
   loading.value = true
   error.value = null
-  const [healthResult, metaResult, streamsResult] = await Promise.allSettled([
+  const [healthResult, metaResult, assetsResult, streamsResult] = await Promise.allSettled([
     api.health(),
     api.meta(),
+    api.assets(),
     api.streams(),
   ])
 
   if (healthResult.status === 'fulfilled') health.value = healthResult.value
   if (metaResult.status === 'fulfilled') meta.value = metaResult.value
+  if (assetsResult.status === 'fulfilled') assets.value = assetsResult.value
   if (streamsResult.status === 'fulfilled') streams.value = streamsResult.value
 
-  const failures = [healthResult, metaResult, streamsResult].filter(
+  const failures = [healthResult, metaResult, assetsResult, streamsResult].filter(
     (result) => result.status === 'rejected',
   )
   if (failures.length > 0 && health.value === null) {
@@ -47,7 +61,7 @@ onMounted(load)
       记住你真实持有什么、原话怎么想。每次市场变化或改口，都给出一份可回放的收据。
     </p>
     <div class="hero-meta">
-      <span class="chip">BTC 现货 · v1.0</span>
+      <span class="chip">BTC 现货 + USDT 永续 · v1.0</span>
       <span class="chip">Thesis 版本化</span>
       <span class="chip">对话只读</span>
       <span class="chip">飞书 · v1.1</span>
@@ -71,17 +85,17 @@ onMounted(load)
 
     <article class="card">
       <header class="card-head">
-        <span class="card-kicker">Investment streams</span>
-        <span class="count">{{ streams.length }}</span>
+        <span class="card-kicker">Investment products</span>
+        <span class="count">{{ assets.length }}</span>
       </header>
-      <h2>{{ streams.length === 0 ? '尚未创建投资流' : streams[0]?.name }}</h2>
-      <p v-if="streams.length === 0" class="muted">
-        P1 将加入 BTC 行情、K 线与 Stream 创建。当前数据库只 seed 了 BTC / BTCUSDT。
+      <h2>{{ assets.length === 0 ? '尚未配置投资产品' : '已关注资产' }}</h2>
+      <p v-if="assets.length === 0" class="muted">
+        下一步：把 BTC、ETH 或美股加进来，作为独立投资产品跟踪。
       </p>
       <ul v-else class="stream-list">
-        <li v-for="stream in streams" :key="stream.id">
-          <span>{{ stream.name }}</span>
-          <span class="mono">{{ stream.status }}</span>
+        <li v-for="asset in assets" :key="asset.id">
+          <span>{{ asset.symbol }} · {{ asset.name }}</span>
+          <span class="mono">{{ streamFor(asset.symbol)?.status ?? '待配置' }}</span>
         </li>
       </ul>
     </article>
@@ -102,13 +116,58 @@ onMounted(load)
     </article>
   </section>
 
+  <section class="products">
+    <div class="products-head">
+      <div>
+        <p class="eyebrow">Investment products</p>
+        <h2>你关注的资产</h2>
+      </div>
+      <span class="mono">v1.0 · BTC 现货；ETH / 美股后续</span>
+    </div>
+
+    <div class="product-grid">
+      <RouterLink
+        v-for="asset in assets"
+        :key="asset.id"
+        class="product-card"
+        :to="`/products/${asset.symbol.toLowerCase()}`"
+      >
+        <div class="product-top">
+          <span class="product-symbol">{{ asset.symbol }}</span>
+          <span class="status-pill" :class="{ active: streamFor(asset.symbol) }">
+            {{ streamFor(asset.symbol) ? '已配置' : '待配置' }}
+          </span>
+        </div>
+        <h3>{{ asset.name }}</h3>
+        <p class="muted">{{ instrumentLabel(asset) }}</p>
+        <div class="product-foot">
+          <span>{{ streamFor(asset.symbol)?.name ?? '创建投资产品' }}</span>
+          <span class="arrow">→</span>
+        </div>
+      </RouterLink>
+
+      <div class="product-card ghost">
+        <div class="product-top">
+          <span class="product-symbol">＋</span>
+          <span class="status-pill">P1</span>
+        </div>
+        <h3>添加资产</h3>
+        <p class="muted">BTC、ETH、美股；每个资产一张卡片，点进去查看、对话、配置。</p>
+        <div class="product-foot">
+          <span>行情与创建流程在 P1</span>
+          <span class="arrow">·</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="panel">
     <div class="panel-head">
       <div>
         <p class="eyebrow">v1.0 scope</p>
         <h2>先把闭环跑通，再加第二入口</h2>
       </div>
-      <span class="mono">BTC · Spot · 1h/4h/1d</span>
+      <span class="mono">BTC · Spot + Swap · 1h/4h/1d</span>
     </div>
     <div class="scope-grid">
       <div>
@@ -125,7 +184,7 @@ onMounted(load)
       </div>
     </div>
     <p class="panel-note">
-      下一步 P1：接入 Binance 公共行情，回填 K 线并计算基础指标。
+      下一步 P1：接入 OKX 公共行情（现货 + 合约观察），回填 K 线并计算基础指标。
     </p>
   </section>
 </template>
