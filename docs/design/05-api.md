@@ -617,6 +617,55 @@ POST /api/v1/streams/{id}/derivative-positions/simulate
 
 不落库；不返回估算清算价，只返回用户录入清算价下的距离。
 
+### 9.6 止损预览（只读）
+
+```http
+POST /api/v1/risk/stop-loss/preview
+{
+  "side": "SHORT",
+  "entry_price": "90000.00",
+  "quantity_base": "0.20000000",
+  "account_equity_usd": "20000.00",
+  "max_drawdown_pct": "20",
+  "max_concurrent_positions": 3,
+  "max_risk_per_trade_pct": "2",
+  "explicit_stop": "95000.00",
+  "liquidation_price": "98000.00",
+  "fee_buffer_usd": "10.00"
+}
+```
+
+响应：
+
+```json
+{
+  "side": "SHORT",
+  "entry_price": "90000.00000000",
+  "per_trade_risk_pct": "2.0000",
+  "risk_pct_source": "USER_OVERRIDE",
+  "risk_amount_usd": "400.00",
+  "derived_stop": "91950.00000000",
+  "explicit_stop": "95000.00000000",
+  "effective_stop": "95000.00000000",
+  "stop_source": "USER",
+  "stop_distance_pct": "5.5556",
+  "derived_stop_distance_pct": "2.1667",
+  "loss_at_stop_usd": "1000.00",
+  "risk_pct_equity": "5.0000",
+  "within_budget": false,
+  "liquidation_buffer_pct": "3.3333",
+  "warnings": ["该止损对应亏损 1000.00 USDT，超过单笔风险预算 400.00 USDT"],
+  "assumptions": []
+}
+```
+
+规则：
+
+- 不落库，不修改 Thesis；用于策略/对话预览。
+- `max_drawdown_pct` 是组合护栏；单笔风险优先用 `max_risk_per_trade_pct`，否则按 `max_drawdown_pct / max_concurrent_positions` 推导并在 `assumptions` 说明。
+- 用户硬止损方向错误、超过风险预算、先触及清算价时，`warnings` 必须返回。
+- 止损金额与价格由程序计算，模型不得心算。
+
 ---
 
 ## 10. Decision 与 Run

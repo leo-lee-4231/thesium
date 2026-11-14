@@ -64,8 +64,11 @@ Investment Thesis 统一承载用户对某个资产的目标、观点与约束�
     "watch": ["88000"]
   },
   "risk": {
+    "account_equity_usd": "20000",
     "max_drawdown_pct": "20",
     "max_position_pct": "50",
+    "max_risk_per_trade_pct": "2",
+    "max_concurrent_positions": "3",
     "risk_budget_usd": "10000",
     "stop_loss_price": null,
     "take_profit_price": null
@@ -81,7 +84,9 @@ Investment Thesis 统一承载用户对某个资产的目标、观点与约束�
     "allow_short": false,
     "max_leverage": "2",
     "max_margin_usd": "2000",
-    "min_liquidation_buffer_pct": "30"
+    "min_liquidation_buffer_pct": "30",
+    "long_stop_loss_price": null,
+    "short_stop_loss_price": "95000"
   },
   "constraints": [
     "不希望仅因短期下跌而完全离场",
@@ -107,7 +112,7 @@ Investment Thesis 统一承载用户对某个资产的目标、观点与约束�
 | `key_levels` | object | 关注价位（支撑/阻力/观察） | 可为空 |
 | `risk` | object | 风险预算与限制 | 可为空 |
 | `position_intent` | object | 仓位意图，不是当前持仓 | 可为空 |
-| `derivative_intent` | object | 永续意图：是否允许、是否允许做空、最大杠杆/保证金、最低清算缓冲 | 可为空 |
+| `derivative_intent` | object | 永续意图：是否允许、是否允许做空、最大杠杆/保证金、最低清算缓冲、做多/做空硬止损 | 可为空 |
 | `constraints` | string[] | 投资约束（自然语言） | 可为空数组 |
 | `open_questions` | string[] | 用户当前关注的问题 | 可为空数组 |
 | `notes` | string \| null | 补充说明 | 可空 |
@@ -149,6 +154,33 @@ Investment Thesis 统一承载用户对某个资产的目标、观点与约束�
 - **可空**：观察型 Stream 可以只有 `original_text`，`structured_content` 为 `{}`。
 
 ---
+
+### 2.5 风险参数、硬止损与推导止损
+
+`risk` 里有两类东西，不能混为一谈：
+
+| 字段 | 含义 | 用途 |
+|---|---|---|
+| `account_equity_usd` | 可管理的总权益（USDT） | 计算单笔风险金额 |
+| `max_drawdown_pct` | 组合级最大可接受回撤 | 组合护栏，不是单笔止损 |
+| `max_risk_per_trade_pct` | 单笔最大风险占比 | 优先使用；未填则用最大回撤 / 并行笔数 |
+| `max_concurrent_positions` | 最多同时持有几笔策略 | 推导单笔风险时的分母 |
+| `risk_budget_usd` | 绝对风险预算 | 与比例风险取较小值 |
+| `risk.stop_loss_price` | 当前/整体硬止损 | 用户明确指定时使用 |
+| `derivative_intent.long_stop_loss_price` | 永续多头的用户硬止损 | 用户明确指定时使用 |
+| `derivative_intent.short_stop_loss_price` | 永续空头的用户硬止损 | 用户明确指定时使用 |
+
+关键区分：
+
+- **用户硬止损**是输入，存进 Thesis；方向必须正确（多头止损 < 开仓价，空头止损 > 开仓价）。
+- **推导止损**是输出，不进 Thesis；由程序按风险预算计算，写入 Decision/策略建议，并标注 `source=DERIVED`。
+- 推导公式（USDT 本位永续，线性）：
+  - 单笔风险 = `min(权益 × 单笔风险%, 绝对风险预算)`
+  - 止损距离 = `单笔风险 / 数量`
+  - 多头止损 = `开仓价 - 距离`；空头止损 = `开仓价 + 距离`
+  - 同时校验：多头止损必须高于清算价，空头止损必须低于清算价。
+- **最大回撤不能直接当单笔止损**。它描述的是组合从高点到低点的容忍度；单笔止损还需要单笔风险比例（或按并行笔数推导的假设）。否则一次交易就可能吃掉全部回撤预算。
+- 如果用户给了硬止损但对应亏损超过单笔风险预算，程序必须提示冲突，不能静默采用。
 
 ## 3. MATERIAL 与 MINOR
 

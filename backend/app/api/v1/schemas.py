@@ -185,3 +185,17 @@ class LLMTestRequest(BaseModel):
     base_url: str = Field(min_length=1, max_length=500)
     model: str = Field(min_length=1, max_length=200)
     api_key: str | None = Field(default=None, max_length=500)
+
+
+class StopLossPreviewRequest(BaseModel):
+    side: Literal["LONG", "SHORT"]
+    entry_price: Decimal = Field(gt=0)
+    quantity_base: Decimal = Field(gt=0)
+    account_equity_usd: Decimal = Field(gt=0)
+    max_drawdown_pct: Decimal = Field(ge=0, le=100)
+    max_concurrent_positions: int = Field(default=5, ge=1, le=100)
+    max_risk_per_trade_pct: Decimal | None = Field(default=None, gt=0, le=100)
+    risk_budget_usd: Decimal | None = Field(default=None, ge=0)
+    explicit_stop: Decimal | None = Field(default=None, gt=0)
+    liquidation_price: Decimal | None = Field(default=None, gt=0)
+    fee_buffer_usd: Decimal = Field(default=Decimal("0"), ge=0)

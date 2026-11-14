@@ -101,7 +101,15 @@
     "action": "HOLD",
     "size_change_pct": null,
     "rationale": "永续仓位维持，等待 4h 动能确认；清算缓冲仍在用户约束内。",
-    "invalidation_conditions": []
+    "invalidation_conditions": [],
+    "stop_loss": {
+      "price": "95000.00000000",
+      "source": "USER",
+      "risk_amount_usd": "600.00",
+      "risk_pct_equity": "3.00",
+      "distance_pct": "8.20",
+      "warnings": []
+    }
   },
   "changes_since_previous": [
     {
@@ -151,6 +159,7 @@
 | `thesis_alignment` | object | `status` 必填 |
 | `position_impact` | object | `assessment` 必填 |
 | `derivative_recommendation` | object | 有永续持仓时必填；动作需匹配方向；无持仓可省略或 `NONE` |
+| `derivative_recommendation.stop_loss` | object | 用户硬止损或程序推导止损；含来源、风险金额、占比、告警 |
 | `changes_since_previous` | array | 无变化时为 `[]`；不得虚构变化 |
 | `invalidation_conditions` | array | `BUY/SELL/REDUCE` 至少 1 条 |
 | `data_quality` | object | `status` 必填 |
@@ -242,6 +251,27 @@
 - `OPEN_SHORT`/`INCREASE_SHORT` 需要 `derivative_intent.allow_short=true`；否则 `REVIEW`。
 - 非 `HOLD/NONE` 的合约建议默认 `priority >= HIGH`，进入通知策略。
 - 有永续持仓但缺少 `derivative_recommendation` → Schema 校验失败，要求重生成。
+
+### 4.8 止损：用户硬止损 vs 推导止损
+
+`derivative_recommendation.stop_loss`：
+
+| 字段 | 说明 |
+|---|---|
+| `price` | 实际采用的止损价 |
+| `source` | `USER`（Thesis 中用户指定）或 `DERIVED`（按风险预算推导） |
+| `risk_amount_usd` | 触发止损时的预计亏损 |
+| `risk_pct_equity` | 占账户权益比例 |
+| `distance_pct` | 距开仓价百分比 |
+| `warnings` | 超出预算、方向错误、先触及清算价等 |
+
+规则：
+
+- **用户硬止损优先**：Thesis 里 `short_stop_loss_price` / `long_stop_loss_price` 有值且方向正确时，采用 `source=USER`。
+- **没有硬止损才推导**：程序用 `account_equity_usd`、`max_drawdown_pct`、`max_risk_per_trade_pct`（或最大回撤/并行笔数）、仓位数量、清算价计算，`source=DERIVED`。
+- **模型不得心算止损**：数值必须来自 `derive_stop_loss` 工具；模型只解释。
+- **冲突必须暴露**：用户止损对应亏损超过单笔风险预算时，`warnings` 非空，Decision 不得静默采用。
+- **清算价约束**：多头止损必须高于清算价，空头止损必须低于清算价；否则提示先被清算的风险。
 
 ---
 

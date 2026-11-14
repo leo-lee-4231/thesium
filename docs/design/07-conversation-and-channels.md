@@ -246,6 +246,7 @@ sequenceDiagram
 | `get_pending_proposals` | ✅ | ✅ | ✅ | 只读；v1.0 通常为空 |
 | `simulate_position_change` | ❌ | ✅ | ✅ | 纯计算，不落库；用于 if-then |
 | `simulate_derivative_change` | ❌ | ✅ | ✅ | 纯计算，不落库；不估算清算价 |
+| `calculate_stop_loss` | ✅ | ✅ | ✅ | 用户硬止损/风险预算推导止损；纯计算 |
 | `save_investment_observation` | ✅ | ❌ | ❌ | 仅监控；对话不写 |
 | `propose_thesis_update` | ❌ | ❌ | ❌ | v1.2+ 预留 |
 | `propose_position_event` | ❌ | ❌ | ❌ | v1.2+ 预留 |

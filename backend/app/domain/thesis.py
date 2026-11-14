@@ -55,8 +55,11 @@ class KeyLevels(BaseModel):
 
 class RiskProfile(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    account_equity_usd: str | None = None
     max_drawdown_pct: str | None = None
     max_position_pct: str | None = None
+    max_risk_per_trade_pct: str | None = None
+    max_concurrent_positions: str | None = None
     risk_budget_usd: str | None = None
     stop_loss_price: str | None = None
     take_profit_price: str | None = None
@@ -77,6 +80,8 @@ class DerivativeIntent(BaseModel):
     max_leverage: str | None = None
     max_margin_usd: str | None = None
     min_liquidation_buffer_pct: str | None = None
+    long_stop_loss_price: str | None = None
+    short_stop_loss_price: str | None = None
 
 
 class ThesisContent(BaseModel):
@@ -325,6 +330,8 @@ def normalize_draft(draft: Any) -> dict[str, Any]:
         "min_liquidation_buffer_pct": _as_str(
             derivative_raw.get("min_liquidation_buffer_pct")
         ),
+        "long_stop_loss_price": _as_str(derivative_raw.get("long_stop_loss_price")),
+        "short_stop_loss_price": _as_str(derivative_raw.get("short_stop_loss_price")),
     }
     data["derivative_intent"] = {
         key: value for key, value in data["derivative_intent"].items() if value is not None

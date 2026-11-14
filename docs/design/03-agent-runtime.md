@@ -277,6 +277,7 @@ class Tool(Protocol):
 | `get_derivative_position_history` | `limit<=50` | 合约事件时间线 |
 | `calculate_derivative_risk` | `{}` | notional、保证金占用、清算缓冲、风险预算 |
 | `simulate_derivative_change` | `action`, `size_change_pct?`, `assumed_mark?` | 假设动作后的 uPnL/清算距离；**纯计算，不落库** |
+| `calculate_stop_loss` | `side`, `entry`, `quantity_base`, `equity`, `max_drawdown_pct`, `max_risk_per_trade_pct?`, `explicit_stop?`, `liquidation_price?` | 用户硬止损 vs 风险预算推导止损、亏损额、告警；**纯计算，不落库** |
 
 **Decision / Memory**
 
@@ -419,6 +420,7 @@ stateDiagram-v2
    - 有永续持仓时 `derivative_recommendation` 必填，动作必须匹配当前方向（多/空）；
    - `OPEN_*` 仅在没有对应持仓时允许；`CLOSE_*` 必须有持仓；禁止同一轮同时开多与开空；
    - 不得输出估算的清算价，只能引用用户录入值。
+   - 止损价必须来自用户 Thesis 或 `calculate_stop_loss` 工具结果，不得由模型自行心算。
 4. 失败重试 1 次（附带错误信息要求修正）；仍失败 → Run FAILED，不写 Decision，不通知。
 
 ### 8.2 对话任务

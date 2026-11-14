@@ -22,9 +22,9 @@ PARSE_SYSTEM = """你是投资论点结构化助手，不是投资顾问。
 输出 JSON：{"draft": {...}, "unparsed": [{"text": string, "reason": string}], "clarifying_questions": [string], "warnings": [string]}。
 draft 字段：schema_version, thesis_statement, purpose, time_horizon{short_term,medium_term,long_term},
 market_outlook{short_term,medium_term,long_term}, scenarios[], key_levels{support,resistance,watch},
-risk{max_drawdown_pct,max_position_pct,risk_budget_usd,stop_loss_price,take_profit_price},
+risk{account_equity_usd,max_drawdown_pct,max_position_pct,max_risk_per_trade_pct,max_concurrent_positions,risk_budget_usd,stop_loss_price,take_profit_price},
 position_intent{preferred_position_pct,allow_add,allow_reduce,avoid_full_exit},
-derivative_intent{allow_perpetual,allow_short,max_leverage,max_margin_usd,min_liquidation_buffer_pct},
+derivative_intent{allow_perpetual,allow_short,max_leverage,max_margin_usd,min_liquidation_buffer_pct,long_stop_loss_price,short_stop_loss_price},
 constraints[], open_questions[], notes。
 枚举：time_horizon 用 DAYS/WEEKS/MONTHS/YEARS；outlook 用 BULLISH/NEUTRAL/BEARISH/UNCERTAIN；
 scenario.direction 用 UP/DOWN/RANGE；scenario.time_horizon 用 SHORT_TERM/MEDIUM_TERM/LONG_TERM。
