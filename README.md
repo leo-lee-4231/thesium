@@ -28,7 +28,7 @@ An auditable, self-hosted personal investment agent: it remembers what you actua
 1. **三分**：客观市场事实 / 用户真实持仓 / 用户正式观点 / AI 推断，互不覆盖。
 2. **只追加**：Thesis、持仓事件、决策、对话消息都是历史，不静默改写。
 3. **可追溯**：每次分析固定证件版本、持仓快照、行情时间与模型。
-4. **对话是思考空间，Thesis 是承诺**：聊天不能直接改 Thesis，只能生成 Proposal，确认后生效。
+4. **对话是思考空间，Thesis 是承诺**：聊天只读，不能改 Thesis 或持仓；正式变更由用户在编辑器中确认后生效。
 5. **渠道是传输层**：Web、飞书共用同一个 Agent Runtime，不出现两套说法。
 6. **数据过期就承认**：`STALE` / `UNKNOWN` 不允许伪装成实时。
 
@@ -66,13 +66,16 @@ Python 3.12 · FastAPI · SQLAlchemy 2.0 async · Pydantic v2 · Alembic · Post
 | [设计文档索引](docs/design/README.md) | 阅读顺序与当前结论 |
 | [00 · 架构决策](docs/design/00-decisions.md) | D1–D14，含对话/渠道新增提案 |
 | [01 · 领域模型](docs/design/01-domain-model.md) | 聚合、不变量、ER 图、表与索引 |
-| [07 · 对话与多渠道](docs/design/07-conversation-and-channels.md) | 对话域、飞书接入、安全、验收 |
-
-02–06（Thesis、Runtime、决策通知、API、路线图）待口径确认后补齐。
+| [02 · Investment Thesis](docs/design/02-thesis.md) | 结构化 Schema、分级确认、版本状态机 |
+| [03 · Agent Runtime](docs/design/03-agent-runtime.md) | Prompt 分层、工具契约、Run 生命周期 |
+| [04 · 决策与通知](docs/design/04-decisions-notifications.md) | Decision Schema、通知策略 |
+| [05 · REST API](docs/design/05-api.md) | 接口、SSE、错误与幂等约定 |
+| [06 · 路线图](docs/design/06-roadmap.md) | P0–P7、测试、风险与验收 |
+| [07 · 对话与多渠道](docs/design/07-conversation-and-channels.md) | 对话域、飞书接入、安全、语气 |
 
 ## 状态
 
-**设计阶段，尚不可运行。** 下一步：确认 MVP 范围与渠道选择 → 补全设计文档 → P0 骨架（Docker Compose + FastAPI + Postgres + Web 壳）。
+**设计阶段，尚不可运行。** v1.0 范围已确定：BTC 现货闭环 + Web 只读对话；飞书 v1.1。下一步：P0 骨架（Docker Compose + FastAPI + Postgres + Web 壳）。
 
 ## 许可证
 

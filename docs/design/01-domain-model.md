@@ -51,7 +51,7 @@
 - `change_class` 为 `MATERIAL` 时必须有 `confirmed_at` 才能 `ACTIVE`；`MINOR` 可由用户提交后直接生效。
 - 新版本生效时，旧 `ACTIVE` 原子地变为 `SUPERSEDED` 并写入 `effective_until`。
 - 只有 `ACTIVE` 版本进入 Agent 上下文；历史版本可查询、可对比，不删除。
-- AI 可以指出与旧版本冲突，但不能自行修改；冲突以 Proposal 形式呈现。
+- AI 可以指出与旧版本冲突，但不能自行修改；冲突以编辑器提示或建议文本呈现，v1.2+ 才用 Proposal。
 
 ### 3.3 Position
 
@@ -74,8 +74,8 @@
 - `Conversation` 归属于一个 Stream，渠道 + 外部线程唯一。
 - `ConversationMessage` 只追加；`seq` 在同一 conversation 内单调递增（事务内对 conversation 行加锁分配）。
 - 用户消息可以幂等：`(channel, external_message_id)` 唯一，重复 webhook 不重复回复。
-- 对话没有直接写 Thesis/Position 的工具；只能创建 `Proposal`。
-- `Proposal` 是「待确认的变更意图」，有 TTL、基准版本、来源 Run/Message；确认后由领域服务落库。
+- v1.0 对话只读：没有写工具，也不创建 Proposal；正式变更由用户在编辑器/表单显式提交。
+- `Proposal` 是 v1.2+ 的「待确认变更意图」，有 TTL、基准版本、来源 Run/Message；确认后由领域服务落库。
 - 确认时若 `base_thesis_version_id` 已不是当前 ACTIVE 版本，标记 `STALE`，要求重新生成，不做自动合并。
 
 ### 3.6 Channel Binding
@@ -83,7 +83,7 @@
 - `(channel, external_user_id)` 唯一；状态 `ACTIVE` / `REVOKED`。
 - 未绑定或已撤销的发送者不得触发任何 Agent 调用。
 - 配对码只存 hash，一次性使用，10 分钟过期。
-- 确认令牌与 Proposal 绑定，单次使用，TTL 15 分钟；不复用聊天里的「好的」。
+- v1.0/v1.1 渠道只读，没有确认动作；未来若开放渠道写操作，令牌与 Proposal 绑定，单次使用，TTL 15 分钟。
 
 ### 3.7 不变量清单
 
@@ -98,7 +98,7 @@
 | I7 | 一个 Monitor Run 最多一个 Decision | `UNIQUE(agent_run_id)` |
 | I8 | 对话消息只追加、seq 单调 | 行锁 + `UNIQUE(conversation_id, seq)` |
 | I9 | 渠道入站幂等 | `UNIQUE(channel, external_message_id)` |
-| I10 | 只有 Proposal 确认能改正式事实 | 工具集无写接口 |
+| I10 | 正式事实只能由用户显式提交/确认改写 | v1.0 对话无写工具；编辑器/表单 + audit |
 | I11 | 金额/价格用 NUMERIC + Decimal | 类型约束 + 代码规范 |
 | I12 | 过期行情不得伪装实时 | `staleness` 字段 + Prompt 规则 |
 | I13 | 密钥不进入日志/上下文 | 加密存储 + 日志脱敏 |
@@ -261,6 +261,7 @@ investment_theses (
     original_text       text not null,
     structured_content  jsonb not null default '{}',
     diff_from_previous  jsonb,
+    source_agent_run_id uuid,               -- AI 整理时记录；不设外键以免循环依赖
     confirmed_at        timestamptz,
     effective_from      timestamptz not null default now(),
     effective_until     timestamptz,
@@ -271,6 +272,10 @@ investment_theses (
 create unique index uq_thesis_one_active
     on investment_theses (stream_id)
     where status = 'ACTIVE';
+
+create unique index uq_thesis_one_pending
+    on investment_theses (stream_id)
+    where status = 'PENDING_CONFIRMATION';
 ```
 
 ### 5.4 持仓
@@ -421,6 +426,7 @@ create unique index uq_message_external
     on conversation_messages (channel, external_message_id)
     where external_message_id is not null;
 
+-- v1.2+ 预留：v1.0 对话只读，不产生 Proposal 记录
 proposals (
     id                      uuid primary key,
     stream_id               uuid not null references investment_streams(id),
@@ -578,25 +584,30 @@ scheduler tick
   → ConversationService 落 USER message
   → 创建 AgentRun(task=CONVERSATION_REPLY)，固定同一组版本引用
   → ContextBuilder 装配：stream brief + ACTIVE Thesis + Position + 最近 Decision + 摘要 + 最近消息
-  → 工具调用（只读 / 提议）
+  → 工具调用（只读 + 纯计算）
   → 流式或一次性生成
   → 落 ASSISTANT message，关联 agent_run_id
-  → 若产生 Proposal：落 proposals，消息里带确认入口
+  → 不写 Thesis / Position / Proposal
 ```
 
-### 7.3 一次确认（Receipt）
+### 7.3 一次正式变更（Receipt）
 
 ```text
-Proposal(PENDING)
-  → 用户确认（Web 或 IM 令牌）
-  → 校验 base version 未过期
-  → 领域服务写新 Thesis 版本 / Position Event
-  → Proposal(CONFIRMED) + 记录新对象 ID
-  → 生成 audit log
-  → 下一轮 Agent Run 使用新版本
+Thesis：
+用户在编辑器修改（可选：THESIS_PARSE 生成结构化草案）
+  → 预览 diff（MATERIAL 必须确认）
+  → 领域服务写新 Thesis 版本（ACTIVE），旧版本原子 SUPERSEDED
+  → 记录 source_agent_run_id（如有）与 audit log
+  → 下一次 Agent Run / 对话使用新版本
+
+持仓：
+用户在表单记录成交/修正
+  → Position Event + Snapshot + 读模型，同事务
+  → audit log
+  → 下一次分析使用新快照
 ```
 
-用户可以在 UI 上看到完整链条：**这条聊天消息 → 这次 Agent Run → 这个 Proposal → 新的 Thesis v4 / 新的持仓事件**。这就是产品所说的「改口给收据」。
+用户可以在 UI 上看到完整链条：**编辑动作 / 可选 Agent Run → 新的 Thesis v4 或新的持仓事件 → audit log**。这就是产品所说的「改口给收据」。v1.2+ 若开放渠道写操作，才在链条中加入 Proposal。
 
 ---
 
@@ -619,5 +630,6 @@ Proposal(PENDING)
 | `positions` 合约字段 | 不混入；未来 `derivative_positions` 子域 |
 | `pgvector` / embedding | v1 不启用；`agent_memories` 先做文本 |
 | 多用户 / 认证 | 保留 `user_id`，auth 中间件后置 |
-| 多渠道 | `channel` 字段与适配器接口预留；只实现 WEB + FEISHU |
+| `proposals` | 建表预留；v1.0 对话只读，不产生记录；v1.2+ 渠道写操作时启用 |
+| 多渠道 | `channel` 字段与适配器接口预留；v1.0 只实现 WEB，v1.1 加 FEISHU |
 | MCP Server | 未来把 Tool Registry 暴露为 MCP，不改变领域模型 |
