@@ -83,14 +83,14 @@ make up
 
 > Docker Hub 不可达时，在 `.env` 里把 `PYTHON_IMAGE` / `NODE_IMAGE` / `NGINX_IMAGE` / `POSTGRES_IMAGE` 指到可用镜像（示例见 `.env.example`），无需改 Dockerfile。
 
-常用命令：`make logs`、`make migrate`、`make test`、`make dev-api`、`make dev-web`。
+常用命令：`make logs`、`make migrate`、`make test`、`make dev-api`、`make dev-web`。备份：`make backup`（写入 `backups/`，用 `pg_dump`）。
 
 ## 文档
 
 | 文档 | 内容 |
 |---|---|
 | [设计文档索引](docs/design/README.md) | 阅读顺序与当前结论 |
-| [00 · 架构决策](docs/design/00-decisions.md) | D1–D16，含对话/渠道/润色边界 |
+| [00 · 架构决策](docs/design/00-decisions.md) | D1–D17，含对话/渠道/润色边界 |
 | [01 · 领域模型](docs/design/01-domain-model.md) | 聚合、不变量、ER 图、表与索引 |
 | [02 · Investment Thesis](docs/design/02-thesis.md) | 结构化 Schema、分级确认、版本状态机 |
 | [03 · Agent Runtime](docs/design/03-agent-runtime.md) | Prompt 分层、工具契约、Run 生命周期 |

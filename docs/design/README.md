@@ -8,7 +8,7 @@
 
 | # | 文档 | 内容 | 状态 |
 |---|---|---|---|
-| 00 | [架构决策记录](00-decisions.md) | D1–D16，含对话/渠道/只读/润色边界 | 已确认 |
+| 00 | [架构决策记录](00-decisions.md) | D1–D17，含对话/渠道/只读/润色边界 | 已确认 |
 | 01 | [领域模型](01-domain-model.md) | 限界上下文、聚合不变量、ER 图、核心表与索引 | 草案 |
 | 02 | [Investment Thesis](02-thesis.md) | 状态机、JSON Schema、分级确认规则 | 草案 |
 | 03 | [Agent Runtime](03-agent-runtime.md) | Prompt 分层、Tool Registry、Run 生命周期、对话装配 | 草案 |

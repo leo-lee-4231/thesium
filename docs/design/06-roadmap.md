@@ -377,6 +377,7 @@ alembic upgrade head
 | Node | nvm 读取 `.nvmrc`（24.21.0）；`npm install` |
 | 前端构建 | `npm run typecheck && npm run build` |
 | Docker Base Image | `PYTHON_IMAGE` / `NODE_IMAGE` / `NGINX_IMAGE` / `POSTGRES_IMAGE` 可配置；Docker Hub 不可达时在 `.env` 指向 DaoCloud 等镜像 |
+| 数据库 | PostgreSQL 16，small profile（`shared_buffers=64MB`、`max_connections=20`、仅绑 `127.0.0.1:5432`）；`make backup` 做 `pg_dump` |
 | 密钥/配置 | `.env` 不入库；只提交 `.env.example` |
 
 说明：

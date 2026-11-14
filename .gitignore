@@ -218,3 +218,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Thesium
+node_modules/
+.npm-cache/
+frontend/.npm-cache/
+backups/

@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 COMPOSE := docker compose -f deploy/docker-compose.yml --env-file .env
 
-.PHONY: help env up down logs ps migrate seed test lint format typecheck build-web install-web dev-api dev-web
+.PHONY: help env up down logs ps migrate seed backup test lint format typecheck build-web install-web dev-api dev-web
 
 help:
 	@echo "Thesium development targets"
@@ -10,6 +10,7 @@ help:
 	@echo "  make logs        Follow container logs"
 	@echo "  make migrate     Run Alembic migrations"
 	@echo "  make seed        Seed the local user, BTC asset and BTCUSDT instrument"
+	@echo "  make backup      Dump Postgres into backups/"
 	@echo "  make test        Run backend tests"
 	@echo "  make lint        Run ruff"
 	@echo "  make typecheck   Type-check the frontend"
@@ -44,6 +45,12 @@ migrate:
 seed:
 	@test -f .env || cp .env.example .env
 	$(COMPOSE) run --rm api python -m app.scripts.seed
+
+backup:
+	@test -f .env || cp .env.example .env
+	@mkdir -p backups
+	@$(COMPOSE) exec -T postgres sh -c 'pg_dump -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"' > "backups/thesium-$$(date +%Y%m%d-%H%M%S).sql"
+	@echo "backup written to backups/"
 
 test:
 	cd backend && python -m pytest -q
