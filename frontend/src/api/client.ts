@@ -93,6 +93,17 @@ export interface MarketOverview {
   warnings: string[]
 }
 
+export interface StreamCreate {
+  name: string
+  asset_symbol: string
+  provider: string
+  instrument_symbol: string
+  market_type: 'SPOT' | 'SWAP'
+  timezone: string
+  monitor_interval_minutes: number
+  agent_enabled: boolean
+}
+
 export interface Stream {
   id: string
   name: string
@@ -108,9 +119,14 @@ export interface Stream {
   market_type: string
 }
 
-async function request<T>(path: string): Promise<T> {
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
-    headers: { Accept: 'application/json' },
+    ...init,
+    headers: {
+      Accept: 'application/json',
+      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+      ...init?.headers,
+    },
   })
   if (!response.ok) {
     throw new Error(`${response.status} ${response.statusText}`)
@@ -123,6 +139,11 @@ export const api = {
   meta: () => request<Meta>('/api/v1/meta'),
   assets: () => request<Asset[]>('/api/v1/assets'),
   streams: () => request<Stream[]>('/api/v1/streams'),
+  createStream: (payload: StreamCreate) =>
+    request<Stream>('/api/v1/streams', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
   marketOverview: (symbol: string) =>
     request<MarketOverview>(`/api/v1/assets/${symbol}/market/overview`),
   candles: (symbol: string, timeframe: string, limit = 200) =>

@@ -1,7 +1,8 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class InstrumentOut(BaseModel):
@@ -96,3 +97,14 @@ class MarketOverviewOut(BaseModel):
     indicators: IndicatorsOut
     derivatives: DerivativesOut | None
     warnings: list[str]
+
+
+class StreamCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    asset_symbol: str = Field(min_length=1, max_length=32)
+    provider: str = Field(default="okx", min_length=1, max_length=64)
+    instrument_symbol: str = Field(min_length=1, max_length=64)
+    market_type: Literal["SPOT", "SWAP"] = "SPOT"
+    timezone: str = Field(default="Asia/Shanghai", min_length=1, max_length=64)
+    monitor_interval_minutes: int = Field(default=60, ge=15, le=1440)
+    agent_enabled: bool = True

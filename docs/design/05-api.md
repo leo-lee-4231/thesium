@@ -234,6 +234,8 @@ Stream 级行情接口在 P2 产品上下文稳定后再补，避免重复实现
 
 首版限制：同一用户只允许一个 `ACTIVE` Stream；违反返回 `409 STREAM_LIMIT`。数据库不建唯一约束，留给未来。
 
+主标的：v1 只允许 `market_type=SPOT`；SWAP 作为同一产品的合约观察/持仓数据自动加载，不作为第二个产品。
+
 `GET /streams/{id}/overview`：
 
 ```json

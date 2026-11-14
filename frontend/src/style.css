@@ -811,3 +811,138 @@ a {
     height: 280px;
   }
 }
+
+/* Product create */
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+  padding: 14px 18px;
+  border: 1px solid rgba(245, 194, 107, 0.28);
+  border-radius: 12px;
+  background: rgba(245, 194, 107, 0.07);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.banner strong {
+  color: var(--amber);
+  font-weight: 600;
+}
+
+.banner a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.form-card {
+  margin-top: 24px;
+  padding: 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.form-field > span {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.form-field input[type='text'],
+.form-field select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  outline: none;
+  background: rgba(10, 14, 19, 0.55);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.form-field input[type='text']:focus,
+.form-field select:focus {
+  border-color: rgba(110, 231, 183, 0.5);
+}
+
+.form-field small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.form-field.checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 9px;
+}
+
+.form-field.checkbox input {
+  accent-color: var(--accent);
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.form-actions .ghost-button {
+  margin-top: 0;
+}
+
+.primary-button {
+  padding: 9px 16px;
+  border: 1px solid var(--accent);
+  border-radius: 9px;
+  background: var(--accent);
+  color: #07120d;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.form-note {
+  margin: 18px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+@media (max-width: 900px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-card {
+    padding: 20px;
+  }
+}

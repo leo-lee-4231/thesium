@@ -157,6 +157,14 @@ onMounted(() => {
       <button class="tab" type="button" disabled>配置 · P1</button>
     </div>
 
+    <div v-if="!loading && !stream" class="banner">
+      <strong>这个资产还没有投资产品</strong>
+      <span>
+        创建后才会启用监控、持仓与对话。
+        <RouterLink :to="`/products/new?symbol=${symbol}`">创建投资产品</RouterLink>
+      </span>
+    </div>
+
     <section class="market-panel">
       <div class="market-head">
         <div>

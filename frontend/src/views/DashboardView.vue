@@ -146,18 +146,18 @@ onMounted(load)
         </div>
       </RouterLink>
 
-      <div class="product-card ghost">
+      <RouterLink v-if="streams.length === 0" class="product-card ghost" to="/products/new">
         <div class="product-top">
           <span class="product-symbol">＋</span>
-          <span class="status-pill">P1</span>
+          <span class="status-pill">新建</span>
         </div>
-        <h3>添加资产</h3>
-        <p class="muted">BTC、ETH、美股；每个资产一张卡片，点进去查看、对话、配置。</p>
+        <h3>创建投资产品</h3>
+        <p class="muted">选资产、行情标的与监控间隔；创建后在这张卡里查看、对话、配置。</p>
         <div class="product-foot">
-          <span>行情与创建流程在 P1</span>
-          <span class="arrow">·</span>
+          <span>v1 只支持一个 ACTIVE 产品</span>
+          <span class="arrow">→</span>
         </div>
-      </div>
+      </RouterLink>
     </div>
   </section>
 

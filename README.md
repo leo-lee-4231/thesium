@@ -103,7 +103,7 @@ OKX 在当前网络需要代理时，启动 API 前设置 `HTTPS_PROXY`（例如
 
 ## 状态
 
-**P1 行情已接入。** OKX 现货 + SWAP、K 线、EMA/RSI/MACD/波动率、产品卡与详情页已可看；下一步 P2：现货 + USDT 永续持仓。v1.0 还包括 Web 只读对话、Thesis 编辑器（AI 润色/整理）；飞书 v1.1。
+**P1 已完成。** OKX 现货 + SWAP、K 线、EMA/RSI/MACD/波动率、产品卡、产品创建与详情页已可看；下一步 P2：现货 + USDT 永续持仓。v1.0 还包括 Web 只读对话、Thesis 编辑器（AI 润色/整理）；飞书 v1.1。
 
 ## 许可证
 

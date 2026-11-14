@@ -5,12 +5,11 @@ from sqlalchemy import select
 
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.core.users import LOCAL_USER_EMAIL
 from app.db.models import Asset, Instrument, User
 from app.db.session import SessionLocal
 
 logger = logging.getLogger(__name__)
-
-LOCAL_EMAIL = "local@thesium.local"
 
 INSTRUMENTS = [
     {"provider": "okx", "symbol": "BTC-USDT", "market_type": "SPOT"},
@@ -20,9 +19,9 @@ INSTRUMENTS = [
 
 async def seed() -> None:
     async with SessionLocal() as session:
-        user = await session.scalar(select(User).where(User.email == LOCAL_EMAIL))
+        user = await session.scalar(select(User).where(User.email == LOCAL_USER_EMAIL))
         if user is None:
-            user = User(email=LOCAL_EMAIL, display_name="Local user")
+            user = User(email=LOCAL_USER_EMAIL, display_name="Local user")
             session.add(user)
             logger.info("seeded local user")
 
