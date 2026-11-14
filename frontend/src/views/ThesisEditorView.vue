@@ -235,23 +235,32 @@ onMounted(() => {
   <p v-if="notice" class="notice">{{ notice }}</p>
 
   <template v-if="stream && !loading">
-    <div class="thesis-explainer">
-      <div>
-        <strong>原文 / 确认正文</strong>
-        <p>
-          你的完整表达，保留语境、条件、犹豫和细节。后续 Agent 读取的是「确认正文」；
-          原文作为审计留底，不直接被覆盖。
-        </p>
-      </div>
-      <div>
-        <strong>结构化字段</strong>
-        <p>
-          给程序和模型看的可计算摘要：方向、周期、目标价、风险预算、杠杆约束等。
-          它用于 Thesis 对齐、风险/杠杆硬约束和 MATERIAL/MINOR 分类，不替代你的原文。
-          留空也能保存，但 Agent 只能主要依赖文字，校验能力会变弱。
-        </p>
-      </div>
-    </div>
+    <section class="thesis-workflow">
+      <article class="workflow-step">
+        <span class="workflow-index">01</span>
+        <strong>写原文</strong>
+        <p>写下投资目标、方向、周期、目标价、风险与约束。原文是后续分析的原则来源，AI 不会覆盖。</p>
+      </article>
+      <article class="workflow-step">
+        <span class="workflow-index">02</span>
+        <strong>AI 整理</strong>
+        <p>把原文整理成结构化字段；不新增你没说的内容。缺失或歧义会列成澄清问题。</p>
+      </article>
+      <article class="workflow-step">
+        <span class="workflow-index">03</span>
+        <strong>你确认</strong>
+        <p>检查结构化字段与 diff；MATERIAL 变更必须确认，MINOR 文字补充直接生效。</p>
+      </article>
+      <article class="workflow-step">
+        <span class="workflow-index">04</span>
+        <strong>引擎执行</strong>
+        <p>后续 Agent 把结构化字段当硬约束、把确认正文当语境；每次分析固定这一版 Thesis。</p>
+      </article>
+    </section>
+    <p class="workflow-note">
+      结构化字段不是新策略，只是把原话变成可计算、可校验的约束。留空也能保存，但方向/风险/杠杆校验会变弱；
+      只改文字不改 JSON 可能被归为 MINOR，改观点时建议同步更新 JSON 或重新 AI 整理。
+    </p>
 
     <div class="thesis-grid">
       <section class="thesis-column">
