@@ -25,7 +25,8 @@ const parseResult = ref<ThesisParseResult | null>(null)
 const diff = ref<ThesisDiffItem[]>([])
 const loading = ref(true)
 const saving = ref(false)
-const aiLoading = ref(false)
+const polishing = ref(false)
+const parsing = ref(false)
 const error = ref<string | null>(null)
 const notice = ref<string | null>(null)
 
@@ -90,7 +91,7 @@ async function refresh(): Promise<void> {
 
 async function runPolish(): Promise<void> {
   if (!stream.value) return
-  aiLoading.value = true
+  polishing.value = true
   error.value = null
   polishResult.value = null
   try {
@@ -98,7 +99,7 @@ async function runPolish(): Promise<void> {
   } catch (caught) {
     error.value = caught instanceof Error ? caught.message : 'AI 润色失败'
   } finally {
-    aiLoading.value = false
+    polishing.value = false
   }
 }
 
@@ -111,7 +112,7 @@ function adoptPolish(): void {
 
 async function runParse(): Promise<void> {
   if (!stream.value) return
-  aiLoading.value = true
+  parsing.value = true
   error.value = null
   parseResult.value = null
   try {
@@ -122,7 +123,7 @@ async function runParse(): Promise<void> {
   } catch (caught) {
     error.value = caught instanceof Error ? caught.message : 'AI 整理失败'
   } finally {
-    aiLoading.value = false
+    parsing.value = false
   }
 }
 
@@ -241,8 +242,8 @@ onMounted(() => {
             <p class="eyebrow">Your words</p>
             <h2>原话与确认正文</h2>
           </div>
-          <button class="ghost-button" type="button" :disabled="aiLoading" @click="runPolish">
-            {{ aiLoading ? '处理中…' : 'AI 润色' }}
+          <button class="ghost-button" type="button" :disabled="polishing" @click="runPolish">
+            {{ polishing ? '润色中…' : 'AI 润色' }}
           </button>
         </div>
 
@@ -277,8 +278,8 @@ onMounted(() => {
             <p class="eyebrow">Structured view</p>
             <h2>结构化字段</h2>
           </div>
-          <button class="ghost-button" type="button" :disabled="aiLoading" @click="runParse">
-            {{ aiLoading ? '处理中…' : 'AI 帮我整理' }}
+          <button class="ghost-button" type="button" :disabled="parsing" @click="runParse">
+            {{ parsing ? '整理中…' : 'AI 帮我整理' }}
           </button>
         </div>
 
