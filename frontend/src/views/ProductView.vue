@@ -1,30 +1,117 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
-import { api, type Asset, type Stream } from '@/api/client'
+import { api, type Asset, type Candle, type MarketOverview, type Stream } from '@/api/client'
+import PriceChart from '@/components/PriceChart.vue'
+
+type Timeframe = '1h' | '4h' | '1d'
 
 const route = useRoute()
 const assets = ref<Asset[]>([])
 const streams = ref<Stream[]>([])
+const overview = ref<MarketOverview | null>(null)
+const candles = ref<Candle[]>([])
+const timeframe = ref<Timeframe>('1h')
 const loading = ref(true)
+const marketLoading = ref(false)
+const error = ref<string | null>(null)
 
 const symbol = computed(() => String(route.params.symbol ?? '').toUpperCase())
 const asset = computed(() => assets.value.find((item) => item.symbol === symbol.value))
 const stream = computed(() => streams.value.find((item) => item.asset_symbol === symbol.value))
+const quote = computed(() => overview.value?.quote ?? null)
+const derivative = computed(() => overview.value?.derivatives ?? null)
+const indicatorEntries = computed(() =>
+  Object.entries(overview.value?.indicators.timeframes ?? {}),
+)
+const change = computed(() => {
+  const value = quote.value?.change_24h_pct
+  return value === null || value === undefined ? null : Number(value)
+})
 
 const instrumentLabel = computed(() => {
   if (!asset.value || asset.value.instruments.length === 0) return '行情未配置'
   return asset.value.instruments
-    .map((instrument) => `${instrument.provider.toUpperCase()} ${instrument.symbol} · ${instrument.market_type}`)
+    .map(
+      (instrument) =>
+        `${instrument.provider.toUpperCase()} ${instrument.symbol} · ${instrument.market_type}`,
+    )
     .join(' / ')
 })
 
-onMounted(async () => {
+function fmt(value: string | null | undefined, digits = 2): string {
+  if (value === null || value === undefined || value === '') return '—'
+  const number = Number(value)
+  if (!Number.isFinite(number)) return value
+  return number.toLocaleString('en-US', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  })
+}
+
+function fmtPercent(value: string | null | undefined, digits = 2): string {
+  if (value === null || value === undefined) return '—'
+  const number = Number(value)
+  if (!Number.isFinite(number)) return '—'
+  return `${number > 0 ? '+' : ''}${number.toFixed(digits)}%`
+}
+
+function fmtFunding(value: string | null | undefined): string {
+  if (value === null || value === undefined) return '—'
+  const number = Number(value) * 100
+  return `${number > 0 ? '+' : ''}${number.toFixed(4)}%`
+}
+
+function fmtTime(value: string | null | undefined): string {
+  if (!value) return '—'
+  return new Date(value).toLocaleString('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    hour12: false,
+  })
+}
+
+async function load(): Promise<void> {
+  loading.value = true
   const [assetsResult, streamsResult] = await Promise.allSettled([api.assets(), api.streams()])
   if (assetsResult.status === 'fulfilled') assets.value = assetsResult.value
   if (streamsResult.status === 'fulfilled') streams.value = streamsResult.value
   loading.value = false
+  await loadMarket()
+}
+
+async function loadMarket(): Promise<void> {
+  marketLoading.value = true
+  error.value = null
+  try {
+    const [overviewResult, candlesResult] = await Promise.all([
+      api.marketOverview(symbol.value),
+      api.candles(symbol.value, timeframe.value, 220),
+    ])
+    overview.value = overviewResult
+    candles.value = candlesResult.candles
+  } catch (caught) {
+    error.value = caught instanceof Error ? caught.message : 'OKX 行情暂时不可用'
+  } finally {
+    marketLoading.value = false
+  }
+}
+
+async function loadCandles(): Promise<void> {
+  try {
+    const result = await api.candles(symbol.value, timeframe.value, 220)
+    candles.value = result.candles
+  } catch (caught) {
+    error.value = caught instanceof Error ? caught.message : 'K 线加载失败'
+  }
+}
+
+watch(timeframe, () => {
+  void loadCandles()
+})
+
+onMounted(() => {
+  void load()
 })
 </script>
 
@@ -42,6 +129,14 @@ onMounted(async () => {
           <span v-if="stream"> · {{ stream.name }} · {{ stream.status }}</span>
         </p>
       </div>
+    </div>
+
+    <div v-if="quote" class="quote-block">
+      <strong class="quote-price">{{ fmt(quote.price, 2) }}</strong>
+      <span class="quote-change" :class="change !== null && change >= 0 ? 'up' : 'down'">
+        {{ fmtPercent(quote.change_24h_pct) }}
+      </span>
+      <span class="mono">{{ fmtTime(quote.market_time) }} · {{ quote.staleness }}</span>
     </div>
 
     <span class="status-pill" :class="{ active: stream }">
@@ -62,14 +157,113 @@ onMounted(async () => {
       <button class="tab" type="button" disabled>配置 · P1</button>
     </div>
 
-    <div class="placeholder-grid">
-      <article class="card">
+    <section class="market-panel">
+      <div class="market-head">
+        <div>
+          <p class="eyebrow">OKX · {{ quote?.instrument ?? 'market' }}</p>
+          <h2>行情与指标</h2>
+        </div>
+        <div class="timeframe-switch">
+          <button
+            v-for="item in (['1h', '4h', '1d'] as Timeframe[])"
+            :key="item"
+            class="tf-button"
+            :class="{ active: timeframe === item }"
+            type="button"
+            @click="timeframe = item"
+          >
+            {{ item.toUpperCase() }}
+          </button>
+        </div>
+      </div>
+
+      <p v-if="marketLoading" class="muted">正在拉取 OKX 行情…</p>
+      <div v-else-if="error" class="market-error">
+        <p class="error">{{ error }}</p>
+        <button class="ghost-button" type="button" @click="loadMarket">重试</button>
+      </div>
+
+      <template v-else-if="quote">
+        <div class="quote-stats">
+          <div class="stat">
+            <span>24h High</span>
+            <strong>{{ fmt(quote.high_24h, 2) }}</strong>
+          </div>
+          <div class="stat">
+            <span>24h Low</span>
+            <strong>{{ fmt(quote.low_24h, 2) }}</strong>
+          </div>
+          <div class="stat">
+            <span>24h Volume (USDT)</span>
+            <strong>{{ fmt(quote.volume_24h, 0) }}</strong>
+          </div>
+          <div class="stat">
+            <span>数据时间</span>
+            <strong>{{ fmtTime(quote.fetched_at) }}</strong>
+          </div>
+        </div>
+
+        <PriceChart :candles="candles" :timeframe="timeframe" />
+
+        <div class="indicator-grid">
+          <article
+            v-for="[tf, snapshot] in indicatorEntries"
+            :key="tf"
+            class="indicator-card"
+          >
+            <header>
+              <span class="card-kicker">{{ tf.toUpperCase() }}</span>
+              <span class="trend" :class="String(snapshot.trend || 'unknown').toLowerCase()">
+                {{ snapshot.trend ?? '—' }}
+              </span>
+            </header>
+            <div class="indicator-row">
+              <span>RSI14</span>
+              <strong>{{ snapshot.rsi14 ?? '—' }}</strong>
+            </div>
+            <div class="indicator-row">
+              <span>EMA20</span>
+              <strong>{{ fmt(String(snapshot.ema20 ?? ''), 2) }}</strong>
+            </div>
+            <div class="indicator-row">
+              <span>MACD Hist</span>
+              <strong>{{ snapshot.macd_hist ?? '—' }}</strong>
+            </div>
+            <div class="indicator-row">
+              <span>Volatility</span>
+              <strong>{{ fmt(String(snapshot.volatility_pct ?? ''), 2) }}%</strong>
+            </div>
+          </article>
+        </div>
+      </template>
+    </section>
+
+    <section class="split-grid">
+      <article v-if="derivative" class="card">
         <header class="card-head">
-          <span class="card-kicker">Market</span>
-          <span class="phase">P1</span>
+          <span class="card-kicker">Derivatives · observation</span>
+          <span class="phase">{{ derivative.staleness }}</span>
         </header>
-        <h2>行情与指标</h2>
-        <p class="muted">公共行情：现货 + 合约观察（mark price / funding / open interest），1h/4h/1d K 线。</p>
+        <h2>{{ derivative.instrument }}</h2>
+        <div class="derivative-grid">
+          <div class="indicator-row">
+            <span>Mark price</span>
+            <strong>{{ fmt(derivative.mark_price, 2) }}</strong>
+          </div>
+          <div class="indicator-row">
+            <span>Funding</span>
+            <strong>{{ fmtFunding(derivative.funding_rate) }}</strong>
+          </div>
+          <div class="indicator-row">
+            <span>Open interest (BTC)</span>
+            <strong>{{ fmt(derivative.open_interest, 0) }}</strong>
+          </div>
+          <div class="indicator-row">
+            <span>Next funding</span>
+            <strong>{{ fmtTime(derivative.next_funding_time) }}</strong>
+          </div>
+        </div>
+        <p class="muted">观察数据，不参与现货或合约持仓的盈亏计算。</p>
       </article>
 
       <article class="card">
@@ -78,9 +272,13 @@ onMounted(async () => {
           <span class="phase">P2</span>
         </header>
         <h2>真实持仓</h2>
-        <p class="muted">现货成交/修正 + USDT 本位永续持仓；用户录入清算价，本地算 uPnL、ROE 与距清算价距离。</p>
+        <p class="muted">
+          现货成交/修正 + USDT 本位永续持仓；用户录入清算价，本地算 uPnL、ROE 与距清算价距离。
+        </p>
       </article>
+    </section>
 
+    <div class="placeholder-grid">
       <article class="card">
         <header class="card-head">
           <span class="card-kicker">Thesis</span>
@@ -99,5 +297,9 @@ onMounted(async () => {
         <p class="muted">只读盘问这个产品：价格、趋势、论点一致性、情景推演与情绪支持。</p>
       </article>
     </div>
+
+    <p v-if="overview?.warnings.length" class="panel-note">
+      {{ overview.warnings.join(' · ') }}
+    </p>
   </template>
 </template>

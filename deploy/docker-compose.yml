@@ -36,11 +36,16 @@ services:
       args:
         PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.12-slim}
         PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       THESIUM_ENVIRONMENT: ${THESIUM_ENVIRONMENT:-development}
       THESIUM_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-thesium}:${POSTGRES_PASSWORD:-thesium}@postgres:5432/${POSTGRES_DB:-thesium}
       THESIUM_LOG_LEVEL: ${THESIUM_LOG_LEVEL:-INFO}
       THESIUM_ADMIN_TOKEN: ${THESIUM_ADMIN_TOKEN:-}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,postgres}
     ports:
       - "127.0.0.1:8000:8000"
     restart: unless-stopped
@@ -68,10 +73,15 @@ services:
         PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
     command: ["python", "-m", "app.workers.main"]
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       THESIUM_ENVIRONMENT: ${THESIUM_ENVIRONMENT:-development}
       THESIUM_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-thesium}:${POSTGRES_PASSWORD:-thesium}@postgres:5432/${POSTGRES_DB:-thesium}
       THESIUM_LOG_LEVEL: ${THESIUM_LOG_LEVEL:-INFO}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,postgres}
     depends_on:
       api:
         condition: service_healthy

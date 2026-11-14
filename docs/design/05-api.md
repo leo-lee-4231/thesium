@@ -201,6 +201,18 @@ GET /api/v1/assets
 ]
 ```
 
+资产级行情（P1 先实现，不依赖 Stream）：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/assets/{symbol}/market?market_type=SPOT` | 报价 + 数据质量 |
+| GET | `/assets/{symbol}/candles?timeframe=1h&limit=200` | K 线；`limit<=300` |
+| GET | `/assets/{symbol}/indicators?timeframes=1h,4h,1d` | 指标快照 |
+| GET | `/assets/{symbol}/derivatives` | SWAP mark/funding/OI |
+| GET | `/assets/{symbol}/market/overview` | 报价 + 三周期指标 + 衍生品观察（详情页用） |
+
+Stream 级行情接口在 P2 产品上下文稳定后再补，避免重复实现。
+
 创建请求：
 
 ```json

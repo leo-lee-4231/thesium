@@ -14,5 +14,5 @@ async def get_meta() -> MetaOut:
         version=settings.version,
         environment=settings.environment,
         phase="P0",
-        capabilities=["health", "assets:list", "streams:list"],
+        capabilities=["health", "assets:list", "streams:list", "market:okx"],
     )

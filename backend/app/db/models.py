@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
@@ -7,6 +8,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     LargeBinary,
+    Numeric,
     String,
     UniqueConstraint,
     func,
@@ -140,4 +142,47 @@ class InvestmentStream(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+class MarketCandle(Base):
+    __tablename__ = "market_candles"
+
+    instrument_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("instruments.id"), primary_key=True
+    )
+    timeframe: Mapped[str] = mapped_column(String(8), primary_key=True)
+    open_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    open: Mapped[Decimal] = mapped_column(Numeric(38, 18), nullable=False)
+    high: Mapped[Decimal] = mapped_column(Numeric(38, 18), nullable=False)
+    low: Mapped[Decimal] = mapped_column(Numeric(38, 18), nullable=False)
+    close: Mapped[Decimal] = mapped_column(Numeric(38, 18), nullable=False)
+    volume: Mapped[Decimal] = mapped_column(Numeric(38, 18), nullable=False)
+    source: Mapped[str] = mapped_column(String(32), nullable=False)
+
+
+class MarketSnapshot(Base):
+    __tablename__ = "market_snapshots"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    instrument_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("instruments.id"), nullable=False, index=True
+    )
+    source: Mapped[str] = mapped_column(String(32), nullable=False)
+    price: Mapped[Decimal] = mapped_column(Numeric(38, 18), nullable=False)
+    change_24h_pct: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
+    volume_24h: Mapped[Decimal | None] = mapped_column(Numeric(38, 18))
+    high_24h: Mapped[Decimal | None] = mapped_column(Numeric(38, 18))
+    low_24h: Mapped[Decimal | None] = mapped_column(Numeric(38, 18))
+    market_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    staleness: Mapped[str] = mapped_column(String(16), nullable=False)
+    indicators: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    derivatives: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    raw: Mapped[dict | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )

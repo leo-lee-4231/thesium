@@ -59,7 +59,7 @@ Web (Vue 3)          Feishu Bot          future: WeCom / MCP
 
 Python 3.12 · FastAPI · SQLAlchemy 2.0 async · Pydantic v2 · Alembic · PostgreSQL 16 · Vue 3 + TypeScript + Vite + ECharts · Docker Compose · pytest · GitHub Actions
 
-## 快速开始（P0 骨架）
+## 快速开始
 
 前置：Docker + Docker Compose；本机开发另需 pyenv 与 nvm。
 
@@ -79,7 +79,9 @@ make up
 # http://127.0.0.1:8080
 ```
 
-当前 P0 只提供健康检查与空的 Stream 列表；行情、持仓、Thesis、分析与对话在 P1–P5 逐步加入。
+当前已接通 OKX 现货 + SWAP 行情、K 线与指标；产品详情页在 http://127.0.0.1:5173/products/btc。持仓、Thesis、分析与对话在 P2–P5 逐步加入。
+
+OKX 在当前网络需要代理时，启动 API 前设置 `HTTPS_PROXY`（例如 `HTTPS_PROXY=http://127.0.0.1:7897 make dev-api`）。
 
 > Docker Hub 不可达时，在 `.env` 里把 `PYTHON_IMAGE` / `NODE_IMAGE` / `NGINX_IMAGE` / `POSTGRES_IMAGE` 指到可用镜像（示例见 `.env.example`），无需改 Dockerfile。
 
@@ -101,7 +103,7 @@ make up
 
 ## 状态
 
-**P0 骨架已可启动，业务功能尚未实现。** v1.0 范围：BTC 现货 + USDT 永续、Web 只读对话、Thesis 编辑器（含 AI 润色/整理）；飞书 v1.1。下一步 P1：OKX 行情、K 线与指标。
+**P1 行情已接入。** OKX 现货 + SWAP、K 线、EMA/RSI/MACD/波动率、产品卡与详情页已可看；下一步 P2：现货 + USDT 永续持仓。v1.0 还包括 Web 只读对话、Thesis 编辑器（AI 润色/整理）；飞书 v1.1。
 
 ## 许可证
 

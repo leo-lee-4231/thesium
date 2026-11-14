@@ -66,7 +66,7 @@
 
 - Market Provider 接口；**OKXProvider**（ticker、klines、mark price、funding rate、open interest）；超时、重试、限频、错误映射。
 - Instruments：`BTC-USDT`（SPOT）、`BTC-USDT-SWAP`（SWAP）；Provider 契约测试覆盖两类。
-- K 线采集：每小时增量 + 首次回填 30 天；`market_candles` 唯一键幂等；确认 OKX 日线边界并统一到 UTC。
+- K 线采集：每小时增量 + 首次回填 30 天；`market_candles` 唯一键幂等；日线用 OKX `1Dutc`，统一到 UTC。
 - 指标计算：EMA20、RSI14、MACD、波动率；多周期（1h/4h/1d）；纯函数 + 单测。
 - 行情快照：`market_snapshots` + `staleness`（FRESH/STALE/UNKNOWN）；衍生品观察单独字段。
 - 产品 CRUD；首版限制一个 ACTIVE；Web 产品卡 + 详情页 + K 线图（ECharts）。
@@ -384,10 +384,11 @@ alembic upgrade head
 | 前端构建 | `npm run typecheck && npm run build` |
 | Docker Base Image | `PYTHON_IMAGE` / `NODE_IMAGE` / `NGINX_IMAGE` / `POSTGRES_IMAGE` 可配置；Docker Hub 不可达时在 `.env` 指向 DaoCloud 等镜像 |
 | 数据库 | PostgreSQL 16，small profile（`shared_buffers=64MB`、`max_connections=20`、仅绑 `127.0.0.1:5432`）；`make backup` 做 `pg_dump` |
+| 行情网络 | OKX 可能需要代理；启动 API 时设置 `HTTPS_PROXY` / `HTTP_PROXY`（本地例如 `http://127.0.0.1:7897`）；Docker 内用 `host.docker.internal` |
 | 密钥/配置 | `.env` 不入库；只提交 `.env.example` |
 
 说明：
 
 - 清华 PyPI 源在不同网络可能返回 403；以实际可达的镜像为准，不把某个源写死进仓库。
 - Docker 镜像同理：Dockerfile 使用 build args，不在 Dockerfile 里硬编码镜像站。
-- 本地开发仍以 Docker Compose 为主；`make dev-api` / `make dev-web` 只用于快速迭代。
+- 本地可直接用 pyenv + nvm 跑 API 与前端；Docker Compose 用于完整栈与部署验证。
