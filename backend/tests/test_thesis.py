@@ -125,3 +125,19 @@ async def test_parse_normalizes_real_world_draft() -> None:
     assert draft["key_levels"]["support"] == ["58000"]
     assert draft["key_levels"].get("resistance", []) == []
     assert draft["key_levels"]["watch"] == ["4w-3w之间；5w即止"]
+
+
+@pytest.mark.asyncio
+async def test_parse_limits_clarifying_questions() -> None:
+    ai = ThesisAI(
+        FakeClient(
+            {
+                "draft": {"thesis_statement": "test"},
+                "unparsed": [],
+                "clarifying_questions": [f"question {index}" for index in range(8)],
+                "warnings": [],
+            }
+        )
+    )
+    result = await ai.parse("test")
+    assert len(result["clarifying_questions"]) == 5

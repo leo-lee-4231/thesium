@@ -28,7 +28,13 @@ derivative_intent{allow_perpetual,allow_short,max_leverage,max_margin_usd,min_li
 constraints[], open_questions[], notes。
 枚举：time_horizon 用 DAYS/WEEKS/MONTHS/YEARS；outlook 用 BULLISH/NEUTRAL/BEARISH/UNCERTAIN；
 scenario.direction 用 UP/DOWN/RANGE；scenario.time_horizon 用 SHORT_TERM/MEDIUM_TERM/LONG_TERM。
-金额/价格用字符串。"""
+金额/价格用字符串。
+
+澄清规则：
+- clarifying_questions 最多 5 条，只问会直接影响上述结构化字段的缺失或矛盾；每条只问一件事，必须具体、可回答。
+- 本产品 v1 只支持 USDT 本位永续；不要问现货借币、交割、期权或具体下单工具。
+- 不要问需要预测未来行情的问题；只问用户自己的计划、约束、情景、触发条件和优先级。
+- 不要重复问用户已经写清楚的信息；能通过 unparsed/warnings 表达的，不要硬塞成问题。"""
 
 _NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
 _DIRECTION_WORDS = {"看涨", "看跌", "中性", "做多", "做空", "加仓", "减仓", "清仓", "持有"}
@@ -78,9 +84,13 @@ class ThesisAI:
             content: ThesisContent = content_from_dict(normalize_draft(draft))
         except ThesisValidationError as exc:
             raise LLMError("LLM_BAD_RESPONSE", str(exc)) from exc
+        questions = result.get("clarifying_questions") or []
+        if not isinstance(questions, list):
+            questions = []
+        cleaned_questions = [str(question).strip() for question in questions if str(question).strip()]
         return {
             "draft": normalized_content(content),
             "unparsed": result.get("unparsed") or [],
-            "clarifying_questions": result.get("clarifying_questions") or [],
+            "clarifying_questions": cleaned_questions[:5],
             "warnings": result.get("warnings") or [],
         }
