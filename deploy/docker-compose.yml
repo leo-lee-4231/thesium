@@ -1,0 +1,80 @@
+name: thesium
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-thesium}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-thesium}
+      POSTGRES_DB: ${POSTGRES_DB:-thesium}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-thesium} -d ${POSTGRES_DB:-thesium}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+      args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.12-slim}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
+    environment:
+      THESIUM_ENVIRONMENT: ${THESIUM_ENVIRONMENT:-development}
+      THESIUM_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-thesium}:${POSTGRES_PASSWORD:-thesium}@postgres:5432/${POSTGRES_DB:-thesium}
+      THESIUM_LOG_LEVEL: ${THESIUM_LOG_LEVEL:-INFO}
+      THESIUM_ADMIN_TOKEN: ${THESIUM_ADMIN_TOKEN:-}
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+      args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.12-slim}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
+    command: ["python", "-m", "app.workers.main"]
+    environment:
+      THESIUM_ENVIRONMENT: ${THESIUM_ENVIRONMENT:-development}
+      THESIUM_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-thesium}:${POSTGRES_PASSWORD:-thesium}@postgres:5432/${POSTGRES_DB:-thesium}
+      THESIUM_LOG_LEVEL: ${THESIUM_LOG_LEVEL:-INFO}
+    depends_on:
+      api:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:24-alpine}
+        NGINX_IMAGE: ${NGINX_IMAGE:-nginx:1.27-alpine}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  pgdata:
