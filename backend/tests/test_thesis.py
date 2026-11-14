@@ -78,3 +78,50 @@ async def test_parse_validates_draft() -> None:
     )
     result = await ai.parse("短期看空")
     assert result["draft"]["market_outlook"]["short_term"] == "BEARISH"
+
+@pytest.mark.asyncio
+async def test_parse_normalizes_real_world_draft() -> None:
+    ai = ThesisAI(
+        FakeClient(
+            {
+                "draft": {
+                    "market_outlook": {
+                        "short_term": "bearish",
+                        "medium_term": None,
+                        "long_term": None,
+                    },
+                    "scenarios": [
+                        {
+                            "direction": "DOWN",
+                            "target_price": 58000,
+                            "description": "短期看空，支撑位 58000",
+                        },
+                        {
+                            "direction": "up",
+                            "target_price": "160000",
+                            "description": "明年开多",
+                        },
+                    ],
+                    "key_levels": {
+                        "support": "58000",
+                        "resistance": None,
+                        "watch": "4w-3w之间；5w即止",
+                    },
+                },
+                "unparsed": [],
+                "clarifying_questions": [],
+                "warnings": [],
+            }
+        )
+    )
+    result = await ai.parse("短期看空到 58000，明年看多到 16w")
+    draft = result["draft"]
+    assert draft["market_outlook"]["short_term"] == "BEARISH"
+    assert draft["market_outlook"].get("long_term", "UNCERTAIN") == "UNCERTAIN"
+    assert draft["scenarios"][0]["id"] == "S1"
+    assert draft["scenarios"][1]["id"] == "S2"
+    assert draft["scenarios"][0]["target_price"] == "58000"
+    assert draft["scenarios"][0]["description"] == "短期看空，支撑位 58000"
+    assert draft["key_levels"]["support"] == ["58000"]
+    assert draft["key_levels"].get("resistance", []) == []
+    assert draft["key_levels"]["watch"] == ["4w-3w之间；5w即止"]

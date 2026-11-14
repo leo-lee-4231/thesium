@@ -43,6 +43,7 @@ class Scenario(BaseModel):
     status: ScenarioStatus = "USER_EXPECTATION"
     conditions: list[str] = Field(default_factory=list)
     invalidation: str | None = None
+    description: str | None = None
 
 
 class KeyLevels(BaseModel):
@@ -188,3 +189,151 @@ def build_diff(
     if previous is None and _is_meaningful_material(after):
         return "MATERIAL", diffs
     return "MINOR", diffs
+
+_OUTLOOKS = {"BULLISH", "NEUTRAL", "BEARISH", "UNCERTAIN"}
+_HORIZONS = {"DAYS", "WEEKS", "MONTHS", "YEARS"}
+_DIRECTIONS = {"UP", "DOWN", "RANGE"}
+_SCENARIO_HORIZONS = {"SHORT_TERM", "MEDIUM_TERM", "LONG_TERM"}
+_SCENARIO_STATUSES = {"USER_EXPECTATION", "CONDITIONAL"}
+
+
+def _as_dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _as_list(value: Any) -> list[Any]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    return [value]
+
+
+def _as_str(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        text = value.strip()
+        return text or None
+    return str(value)
+
+
+def _as_enum(value: Any, allowed: set[str]) -> str | None:
+    if not isinstance(value, str):
+        return None
+    candidate = value.strip().upper().replace("-", "_").replace(" ", "_")
+    return candidate if candidate in allowed else None
+
+
+def _as_bool(value: Any) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"true", "yes", "1"}:
+            return True
+        if lowered in {"false", "no", "0"}:
+            return False
+    return None
+
+
+def normalize_draft(draft: Any) -> dict[str, Any]:
+    """Coerce common LLM output shapes into the strict ThesisContent schema.
+
+    This is only used for AI parse drafts; manual submissions remain strict.
+    """
+    if not isinstance(draft, dict):
+        return {}
+
+    allowed_top = set(ThesisContent.model_fields)
+    data = {key: value for key, value in draft.items() if key in allowed_top}
+    data["schema_version"] = str(data.get("schema_version") or "1.0")
+
+    for key in ("thesis_statement", "purpose", "notes"):
+        if key in data:
+            data[key] = _as_str(data.get(key))
+
+    horizon_raw = _as_dict(data.get("time_horizon"))
+    horizon = {
+        key: _as_enum(horizon_raw.get(key), _HORIZONS)
+        for key in ("short_term", "medium_term", "long_term")
+        if _as_enum(horizon_raw.get(key), _HORIZONS) is not None
+    }
+    data["time_horizon"] = horizon
+
+    outlook_raw = _as_dict(data.get("market_outlook"))
+    data["market_outlook"] = {
+        key: _as_enum(outlook_raw.get(key), _OUTLOOKS) or "UNCERTAIN"
+        for key in ("short_term", "medium_term", "long_term")
+    }
+
+    scenarios: list[dict[str, Any]] = []
+    allowed_scenario = set(Scenario.model_fields)
+    for index, raw in enumerate(_as_list(data.get("scenarios"))):
+        if not isinstance(raw, dict):
+            continue
+        direction = _as_enum(raw.get("direction"), _DIRECTIONS)
+        if direction is None:
+            continue
+        item = {key: value for key, value in raw.items() if key in allowed_scenario}
+        item["id"] = _as_str(item.get("id")) or f"S{index + 1}"
+        item["direction"] = direction
+        item["target_price"] = _as_str(item.get("target_price"))
+        item["target_currency"] = _as_str(item.get("target_currency")) or "USDT"
+        item["time_horizon"] = (
+            _as_enum(item.get("time_horizon"), _SCENARIO_HORIZONS) or "SHORT_TERM"
+        )
+        item["status"] = (
+            _as_enum(item.get("status"), _SCENARIO_STATUSES) or "USER_EXPECTATION"
+        )
+        item["conditions"] = [str(value) for value in _as_list(item.get("conditions")) if value]
+        item["invalidation"] = _as_str(item.get("invalidation"))
+        item["description"] = _as_str(item.get("description"))
+        scenarios.append(item)
+    data["scenarios"] = scenarios
+
+    levels_raw = _as_dict(data.get("key_levels"))
+    data["key_levels"] = {
+        key: [str(value) for value in _as_list(levels_raw.get(key)) if value not in (None, "")]
+        for key in ("support", "resistance", "watch")
+    }
+
+    risk_raw = _as_dict(data.get("risk"))
+    data["risk"] = {
+        key: _as_str(risk_raw.get(key))
+        for key in RiskProfile.model_fields
+        if _as_str(risk_raw.get(key)) is not None
+    }
+
+    position_raw = _as_dict(data.get("position_intent"))
+    data["position_intent"] = {
+        "preferred_position_pct": _as_str(position_raw.get("preferred_position_pct")),
+        "allow_add": _as_bool(position_raw.get("allow_add")),
+        "allow_reduce": _as_bool(position_raw.get("allow_reduce")),
+        "avoid_full_exit": _as_bool(position_raw.get("avoid_full_exit")),
+    }
+    data["position_intent"] = {
+        key: value for key, value in data["position_intent"].items() if value is not None
+    }
+
+    derivative_raw = _as_dict(data.get("derivative_intent"))
+    data["derivative_intent"] = {
+        "allow_perpetual": _as_bool(derivative_raw.get("allow_perpetual")),
+        "allow_short": _as_bool(derivative_raw.get("allow_short")),
+        "max_leverage": _as_str(derivative_raw.get("max_leverage")),
+        "max_margin_usd": _as_str(derivative_raw.get("max_margin_usd")),
+        "min_liquidation_buffer_pct": _as_str(
+            derivative_raw.get("min_liquidation_buffer_pct")
+        ),
+    }
+    data["derivative_intent"] = {
+        key: value for key, value in data["derivative_intent"].items() if value is not None
+    }
+
+    data["constraints"] = [
+        str(value) for value in _as_list(data.get("constraints")) if value not in (None, "")
+    ]
+    data["open_questions"] = [
+        str(value) for value in _as_list(data.get("open_questions")) if value not in (None, "")
+    ]
+    return data

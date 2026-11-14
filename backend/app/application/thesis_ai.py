@@ -6,6 +6,7 @@ from app.domain.thesis import (
     ThesisContent,
     ThesisValidationError,
     content_from_dict,
+    normalize_draft,
     normalized_content,
 )
 from app.infrastructure.llm.client import LLMClient, LLMError
@@ -74,7 +75,7 @@ class ThesisAI:
         if not isinstance(draft, dict):
             raise LLMError("LLM_BAD_RESPONSE", "missing draft")
         try:
-            content: ThesisContent = content_from_dict(draft)
+            content: ThesisContent = content_from_dict(normalize_draft(draft))
         except ThesisValidationError as exc:
             raise LLMError("LLM_BAD_RESPONSE", str(exc)) from exc
         return {
