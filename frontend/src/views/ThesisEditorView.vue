@@ -310,6 +310,10 @@ onMounted(() => {
           </button>
         </div>
 
+        <p class="muted source-note">
+          AI 整理读取「确认正文」；确认正文为空时才用原文。只改了原文时，请先点左侧「用原文同步确认正文」。
+        </p>
+
         <label class="form-field">
           <span>JSON（可手改；AI 整理会回填；留空也可保存）</span>
           <textarea v-model="structuredText" rows="18" spellcheck="false" />

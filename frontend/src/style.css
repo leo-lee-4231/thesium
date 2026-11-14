@@ -1401,3 +1401,8 @@ a {
     grid-template-columns: 1fr;
   }
 }
+
+.source-note {
+  margin: -4px 0 10px;
+  font-size: 11px;
+}
