@@ -139,7 +139,7 @@ v1 单租户只维护一个默认 Provider，通过设置接口读写；API Key 
 |---|---|---|
 | GET | `/settings/llm` | 当前配置与状态（不回显 Key） |
 | PUT | `/settings/llm` | 保存 Base URL / Model / API Key；Key 留空表示不变 |
-| POST | `/settings/llm/test` | 连接测试，更新 status/last_tested_at |
+| POST | `/settings/llm/test` | 连接测试；可带未保存的 base_url/model/api_key，测试不写库 |
 
 保存请求：
 

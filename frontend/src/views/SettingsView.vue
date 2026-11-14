@@ -69,7 +69,11 @@ async function test(): Promise<void> {
   error.value = null
   testResult.value = null
   try {
-    testResult.value = await api.testLlm()
+    testResult.value = await api.testLlm({
+      base_url: baseUrl.value,
+      model: model.value,
+      api_key: apiKey.value || undefined,
+    })
     await load()
   } catch (caught) {
     error.value = caught instanceof Error ? caught.message : '连接测试失败'

@@ -122,6 +122,33 @@ class LLMProviderService:
         await self._session.commit()
         return await self.status()
 
+    async def _saved_api_key(self) -> str | None:
+        row = await self._row()
+        if row is None or not row.api_key_ciphertext:
+            return None
+        try:
+            return decrypt_secret(row.api_key_ciphertext)
+        except SecretError as exc:
+            raise LLMProviderError("SECRET_ERROR", str(exc)) from exc
+
+    async def test_candidate(
+        self, *, base_url: str, model: str, api_key: str | None
+    ) -> dict[str, object]:
+        base_url = base_url.strip().rstrip("/")
+        model = model.strip()
+        if not base_url.startswith(("http://", "https://")):
+            raise LLMProviderError("VALIDATION", "base_url must start with http:// or https://")
+        if not model:
+            raise LLMProviderError("VALIDATION", "model must not be empty")
+        candidate_key = (
+            api_key.strip() if api_key and api_key.strip() else await self._saved_api_key()
+        )
+        client = LLMClient(LLMConfig(base_url=base_url, model=model, api_key=candidate_key))
+        try:
+            return await client.ping()
+        except LLMError as exc:
+            return {"ok": False, "error": exc.code, "message": exc.message}
+
     async def test(self) -> dict[str, object]:
         config = await self.config()
         if config is None:

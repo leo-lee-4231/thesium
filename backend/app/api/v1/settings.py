@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.schemas import LLMConfigUpdate
+from app.api.v1.schemas import LLMConfigUpdate, LLMTestRequest
 from app.application.llm_provider_service import LLMProviderError, LLMProviderService
 from app.db.session import get_session
 from app.infrastructure.llm.client import LLMNotConfigured
@@ -42,9 +42,20 @@ async def save_llm_config(
 
 
 @router.post("/llm/test")
-async def test_llm_config(session: AsyncSession = Depends(get_session)) -> dict[str, object]:
+async def test_llm_config(
+    payload: LLMTestRequest | None = None,
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, object]:
+    service = LLMProviderService(session)
     try:
-        return await LLMProviderService(session).test()
+        if payload is not None:
+            # Test the current form values without persisting them.
+            return await service.test_candidate(
+                base_url=payload.base_url,
+                model=payload.model,
+                api_key=payload.api_key,
+            )
+        return await service.test()
     except LLMNotConfigured as exc:
         raise HTTPException(status_code=503, detail=f"LLM_NOT_CONFIGURED: {exc}") from exc
     except LLMProviderError as exc:

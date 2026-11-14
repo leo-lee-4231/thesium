@@ -89,7 +89,7 @@ AI 润色/整理需要 OpenAI 兼容模型。打开 http://127.0.0.1:5173/settin
 - Model（如 `deepseek-chat`）
 - API Key
 
-配置保存到 PostgreSQL，API Key 加密存储、前端只显示末 4 位；支持「测试连接」。保存后立即生效，无需重启 API。
+配置保存到 PostgreSQL，API Key 加密存储、前端只显示末 4 位；支持「测试连接」。测试可以使用尚未保存的表单值，且不会写库；API Key 留空时回退到已保存的 Key。保存后立即生效，无需重启 API。
 
 本地开发会用 `backend/.thesium-secret` 自动生成加密密钥（已 gitignore）。Docker/自托管建议在 `.env` 设置 `THESIUM_SECRET_KEY`，否则重建容器会丢失密钥、已保存的 API Key 需要重新输入：
 

@@ -314,10 +314,14 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(payload),
     }),
-  testLlm: () => request<{ ok: boolean; latency_ms?: number; error?: string; message?: string }>(
-    '/api/v1/settings/llm/test',
-    { method: 'POST' },
-  ),
+  testLlm: (payload?: { base_url: string; model: string; api_key?: string }) =>
+    request<{ ok: boolean; latency_ms?: number; error?: string; message?: string }>(
+      '/api/v1/settings/llm/test',
+      {
+        method: 'POST',
+        ...(payload ? { body: JSON.stringify(payload) } : {}),
+      },
+    ),
   thesis: (streamId: string) => request<ThesisVersion | null>(`/api/v1/streams/${streamId}/thesis`),
   thesisVersions: (streamId: string) =>
     request<ThesisVersion[]>(`/api/v1/streams/${streamId}/thesis/versions`),
