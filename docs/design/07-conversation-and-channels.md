@@ -1,7 +1,7 @@
 # 07 · 对话与多渠道接入
 
 > 状态：v0.1（范围已确认，2026-11-14）
-> 对应决策：`00-decisions.md` D9–D15
+> 对应决策：`00-decisions.md` D9–D16
 > 一句话：**对话是思考空间，Thesis 是承诺；对话只读，渠道只是运输方式。**
 
 ---
@@ -28,7 +28,7 @@
 
 ### 边界二：聊天只读，不能替用户「定稿」
 
-聊天中用户说「我短期看空到 65,000」，Agent 可以解释、给操作框架，甚至告诉你去改哪几个字段，但不能创建 Proposal、不能写 Thesis。正式变更只发生在 Web 的 Thesis 编辑器或持仓表单里，由用户显式提交/确认。详见 7.6.4 与 7.10。
+聊天中用户说「我短期看空到 65,000」，Agent 可以解释、给操作框架，甚至告诉你去改哪几个字段，但不能创建 Proposal、不能写 Thesis。正式变更只发生在 Web 的 Thesis 编辑器或持仓表单里，由用户显式提交/确认；编辑器里另有 **AI 润色**（只改表达）与 **AI 整理**（结构化）。详见 7.6.4 与 7.10。
 
 ### 边界三：渠道是传输层，不是第二个产品
 
@@ -48,7 +48,7 @@ Web、飞书、未来的企业微信共用同一个 `ConversationService` 和 `A
 
 ---
 
-## 7.3 一个 Runtime，三种任务
+## 7.3 一个 Runtime，多种任务
 
 | 维度 | `MONITOR_ANALYSIS` | `CONVERSATION_REPLY` | `THESIS_PARSE` |
 |---|---|---|---|
@@ -74,7 +74,7 @@ Web、飞书、未来的企业微信共用同一个 `ConversationService` 和 `A
 @dataclass(frozen=True)
 class AgentTask:
     stream_id: UUID
-    task_type: Literal["MONITOR_ANALYSIS", "CONVERSATION_REPLY", "THESIS_PARSE"]
+    task_type: Literal["MONITOR_ANALYSIS", "CONVERSATION_REPLY", "THESIS_PARSE", "THESIS_POLISH"]
     conversation_id: UUID | None = None
     user_message_id: UUID | None = None
     output_schema: type[BaseModel] | None = None   # 结构化任务用
@@ -85,6 +85,8 @@ class AgentRuntime(Protocol):
 ```
 
 `AgentResult` 至少包含：`run_id`、`text`、`parsed`、`tool_calls`、`usage`、`pinned_refs`（thesis/position/market 版本）。
+
+> 编辑器内还有 `THESIS_POLISH`：由用户点击触发，只润色文字、不写库；它不属于对话任务，也不暴露给渠道。
 
 ---
 
@@ -260,6 +262,7 @@ sequenceDiagram
 - **可以**：查行情、指标、持仓、论点、历史决策、待确认草案；做纯计算的情景模拟；讨论操作框架；情绪支持。
 - **不可以**：创建/修改 Thesis、记录成交、修正持仓、创建告警、写 Observation、发通知。
 - 用户说「帮我记一下 / 改成看空」：Agent 说明不能代写，指出具体修改路径（Thesis 编辑器或持仓表单），可以给出建议文本，但不落库。
+- 用户说「帮我润色一下」：Agent 说明润色在 Thesis 编辑器的「AI 润色」里，对话不触发、不保存。
 - 用户问「现在该买还是卖」：可以给情景化框架与风险提示，但不给保证性指令；明确「最终决定与执行由你完成」。
 - 所有数字来自工具；所有价格带时间戳；没有数据就承认没有。
 
@@ -589,7 +592,7 @@ Thesis v3 · 行情 15:00Z · 建议非保证 · /why 查看依据
 
 | 阶段 | 内容 | 预估（业余） |
 |---|---|---|
-| v1.0 | **核心 + Web 只读对话**：BTC 现货、Thesis、持仓、定时分析、邮件、Dashboard、Conversation/SSE、只读工具、语气策略 | 4–5 周 |
+| v1.0 | **核心 + Web 只读对话**：BTC 现货、Thesis 编辑器（含 AI 润色/整理）、持仓、定时分析、邮件、Dashboard、Conversation/SSE、只读工具、语气策略 | 4–5 周 |
 | v1.1 | 飞书只读：自建应用、长连接、配对绑定、文本回复、`/why`、可选重要决策推送 | +1 周 |
 | v1.2 | 增强：渠道写操作（Proposal + 令牌/卡片）、企业微信/公众号、按需完整分析 | 按需 |
 
@@ -600,6 +603,7 @@ Thesis v3 · 行情 15:00Z · 建议非保证 · /why 查看依据
 1. **Web 问价**：问「BTC 现在什么价？」→ 必须调用行情工具，回答含价格、`market_time`、来源；STALE 时明确标注。
 2. **论点检视**：问「我现在的观点还成立吗？」→ 引用 ACTIVE Thesis 版本、最近 Decision、一致性/冲突点。
 3. **改观点（只读边界）**：说「我短期看空到 65,000，帮我改」→ Agent 明确不能代写，指出 Thesis 编辑器路径并给建议文本；数据无变化。用户在编辑器修改并确认后，Thesis vN+1 生效；下一次对话/监控使用新版本。
+4. **AI 润色（编辑器）**：在编辑器点击「AI 润色」→ 返回更清晰的文本与 change_notes；数字/方向/约束不变；用户可采用、拒绝或手动编辑，再确认生效。
 4. **记成交（只读边界）**：说「我刚以 92,000 卖了 0.2 BTC」→ Agent 不写持仓，引导去「记录成交」表单；录入后下一次对话能解释持仓与风险变化。
 5. **飞书配对**：未绑定发送被拒；`/bind <code>` 成功；随后问价得到回复；重复事件只回一次。
 6. **飞书只读**：在飞书说「帮我改成看空」→ 拒绝代写并引导回 Web；数据库无变更。

@@ -1,7 +1,7 @@
 # 01 · 领域模型与数据边界
 
 > 状态：草案 v0.1（含对话域）
-> 对应决策：`00-decisions.md` D1–D14
+> 对应决策：`00-decisions.md` D1–D16
 > 说明：本文是设计口径，不是最终 Migration；字段名可在实现时微调，但聚合边界与不变量不应随意改变。
 
 ---
@@ -47,6 +47,8 @@
 - **只追加，不覆盖**：每次更新生成新 `version`。
 - 同一 Stream 任一时刻最多一个 `ACTIVE` 版本（部分唯一索引保证）。
 - `original_text` 必存，且是用户原话；`structured_content` 是整理结果，不能反过来覆盖原文。
+- `final_text` 是用户确认后的正文（可采用 AI 润色，也可手动编辑）；为空时回退 `original_text`；Agent 上下文使用 `final_text or original_text`。
+- `original_text` 与 `final_text` 都保留；AI 润色只改善表达，不改变数字、方向、周期、约束或事实。
 - `source` 区分 `USER` / `AGENT` / `SYSTEM`；Agent 生成的内容在确认前只能是 `PENDING_CONFIRMATION`。
 - `change_class` 为 `MATERIAL` 时必须有 `confirmed_at` 才能 `ACTIVE`；`MINOR` 可由用户提交后直接生效。
 - 新版本生效时，旧 `ACTIVE` 原子地变为 `SUPERSEDED` 并写入 `effective_until`。
@@ -102,6 +104,7 @@
 | I11 | 金额/价格用 NUMERIC + Decimal | 类型约束 + 代码规范 |
 | I12 | 过期行情不得伪装实时 | `staleness` 字段 + Prompt 规则 |
 | I13 | 密钥不进入日志/上下文 | 加密存储 + 日志脱敏 |
+| I14 | AI 润色不改变事实；原文与确认正文都保留 | `original_text` + `final_text` + `polish_agent_run_id` |
 
 ---
 
@@ -258,10 +261,12 @@ investment_theses (
     status              text not null,      -- DRAFT/PENDING_CONFIRMATION/ACTIVE/SUPERSEDED/REJECTED/ARCHIVED
     source              text not null,      -- USER/AGENT/SYSTEM
     change_class        text not null,      -- MINOR/MATERIAL
-    original_text       text not null,
+    original_text       text not null,          -- 用户原始输入，永不覆盖
+    final_text          text,                   -- 用户确认正文（可润色/编辑）；空则回退 original_text
     structured_content  jsonb not null default '{}',
     diff_from_previous  jsonb,
     source_agent_run_id uuid,               -- AI 整理时记录；不设外键以免循环依赖
+    polish_agent_run_id uuid,               -- AI 润色时记录；不设外键以免循环依赖
     confirmed_at        timestamptz,
     effective_from      timestamptz not null default now(),
     effective_until     timestamptz,
@@ -594,11 +599,12 @@ scheduler tick
 
 ```text
 Thesis：
-用户在编辑器修改（可选：THESIS_PARSE 生成结构化草案）
+用户在独立编辑器修改（可选：THESIS_POLISH 润色文字、THESIS_PARSE 生成结构化草案）
+  → 用户可编辑并「采用润色」；润色不自动保存
   → 预览 diff（MATERIAL 必须确认）
   → 领域服务写新 Thesis 版本（ACTIVE），旧版本原子 SUPERSEDED
-  → 记录 source_agent_run_id（如有）与 audit log
-  → 下一次 Agent Run / 对话使用新版本
+  → 记录 source_agent_run_id / polish_agent_run_id（如有）与 audit log
+  → 下一次 Agent Run / 对话使用 final_text（无则 original_text）
 
 持仓：
 用户在表单记录成交/修正

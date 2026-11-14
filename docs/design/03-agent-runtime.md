@@ -1,7 +1,7 @@
 # 03 · Agent Runtime
 
 > 状态：草案 v0.1
-> 对应决策：D9（同一 Runtime）、D13（记忆边界）、D14（只读对话）、D15（语气）
+> 对应决策：D9（同一 Runtime）、D13（记忆边界）、D14（只读对话）、D15（语气）、D16（AI 润色）
 > 一句话：**模型只能看见程序给它的东西，只能通过工具拿事实，只能输出被 Schema 约束的结论。**
 
 ---
@@ -10,7 +10,7 @@
 
 Agent Runtime 负责把「用户的投资上下文 + 市场事实」变成「可审计的分析或回答」。它必须：
 
-1. 同一套 Runtime 服务定时分析、Web 对话、Thesis 解析；
+1. 同一套 Runtime 服务定时分析、Web 对话、Thesis 解析与润色；
 2. 所有事实来自工具，不由模型编造；
 3. 所有运行可回放：固定 Thesis 版本、持仓快照、行情快照、Prompt 版本、模型；
 4. 对话只读，不能写 Thesis/持仓；
@@ -130,6 +130,19 @@ AgentRuntime
 4. 不做投资建议，不评价用户观点对错。
 ```
 
+**THESIS_POLISH**：
+
+```text
+任务：润色用户提供的 Thesis 原文，使其更清晰、有条理。
+要求：
+1. 只改表达，不改事实：数字、价位、方向、周期、仓位意图、约束、否定关系必须保持。
+2. 不新增任何用户没说的信息；不把观点改写成投资建议。
+3. 输出 {polished_text, change_notes, warnings, meaning_preserved}。
+4. 保持原文语言与第一人称；不要加 emoji 或夸张语气。
+5. 如果原文已经足够清晰，原样返回并说明「无需修改」。
+6. 不评价用户观点对错，不预测市场。
+```
+
 ---
 
 ## 4. ContextBuilder
@@ -163,12 +176,21 @@ AgentRuntime
 
 预算见 `07-conversation-and-channels.md` 7.5。
 
-### 4.3 解析任务上下文
+### 4.3 解析与润色任务上下文
 
-- 用户原文（完整）；
+**THESIS_PARSE**：
+
+- 用户原文（完整，`final_text or original_text`）；
 - 当前 ACTIVE Thesis 结构化内容（参考口径）；
 - 资产与当前价格（仅用于判断目标价是否合理，不写入）；
 - 输出 Schema 与字段说明。
+
+**THESIS_POLISH**：
+
+- 用户原文（完整，`final_text or original_text`）；
+- 当前 ACTIVE Thesis 摘要（避免润色把旧版本内容混入）；
+- 输出 Schema（polished_text / change_notes / warnings / meaning_preserved）；
+- 不需要行情工具；不注入持仓与 Decision。
 
 ### 4.4 上下文摘要与 digest
 
@@ -403,6 +425,14 @@ stateDiagram-v2
 - `draft` 过 Thesis Schema；
 - `unparsed` 片段必须是原文子串；
 - 失败保留原文，提示手填。
+
+### 8.4 润色任务
+
+1. `polished_text` 非空、语言与原文一致。
+2. 数字 token 集合与原文一致；方向词、否定词不得翻转（见 `02-thesis.md` 5.4）。
+3. `change_notes` 每项必须有 before/after/reason；不得编造。
+4. `warnings` 必须保留；失败保留原文，提示重试。
+5. 润色结果不自动保存；Run 只记录建议与 usage。
 
 ---
 

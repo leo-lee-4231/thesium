@@ -1,7 +1,7 @@
 # 02 · Investment Thesis
 
 > 状态：草案 v0.1
-> 对应决策：D4（分级确认）、D13（对话记忆边界）、D14（正式变更边界）
+> 对应决策：D4（分级确认）、D13（对话记忆边界）、D14（正式变更边界）、D16（AI 润色）
 > 一句话：**用户原话是事实，结构化内容是整理；AI 可以整理，不能替用户改口。**
 
 ---
@@ -196,24 +196,41 @@ stateDiagram-v2
 
 ---
 
-## 5. AI 解析（THESIS_PARSE）
+## 5. AI 辅助：解析与润色
 
 ### 5.1 触发方式
 
-只在 Thesis 编辑器中由用户显式点击「AI 帮我整理」触发。**对话窗口不触发解析，也不保存结果。**
+只在 Thesis 编辑器中由用户显式点击触发。**对话窗口不触发解析/润色，也不保存结果。**
 
-流程：
+- **AI 润色**（`THESIS_POLISH`）：先改善表达，不改事实；
+- **AI 帮我整理**（`THESIS_PARSE`）：把文字变成结构化字段；
+- 两者都只返回建议，不落库；用户编辑/确认后才生成版本。
+
+润色流程：
+
+```text
+用户原文（编辑器 textarea）
+  → 点击「AI 润色」
+  → AgentRun(task=THESIS_POLISH) 固定原文 + 当前 ACTIVE 版本
+  → 返回 polished_text + change_notes + warnings
+  → 编辑器并排 diff；用户可「采用润色 / 保留原文 / 手动编辑」
+  → final_text 确定
+  → 可选：点击「AI 帮我整理」生成结构化草案
+  → 提交：按 MATERIAL/MINOR 规则生成版本
+```
+
+解析流程：
 
 ```text
 用户输入 natural language（编辑器 textarea）
   → 点击「AI 帮我整理」
-  → AgentRun(task=THESIS_PARSE) 固定当前 ACTIVE 版本 + 原话
+  → AgentRun(task=THESIS_PARSE) 固定当前 ACTIVE 版本 + 原文（或 final_text）
   → 返回结构化草案 + unparsed + clarifying_questions
   → 编辑器回填字段（用户可改）
   → 用户提交：按 MATERIAL/MINOR 规则生成版本
 ```
 
-### 5.2 输出契约
+### 5.2 解析输出契约
 
 ```json
 {
@@ -247,6 +264,98 @@ stateDiagram-v2
 | JSON 不合法 | 重试 1 次；仍失败则提示「暂时无法整理，可直接手填」 |
 | 结构化字段为空 | 合法：观察型论点，允许提交 |
 | 用户取消 | 丢弃草案；不产生版本、不产生 AgentRun 之外的写入 |
+
+### 5.4 AI 润色（THESIS_POLISH）
+
+**目标**：让用户的原话更清晰、更有条理、更易读，但**不改变用户的意思**。
+
+允许：
+
+- 调整语序、断句、段落；
+- 去掉重复、口语填充词；
+- 把含糊表达改清楚（在不新增信息的前提下）；
+- 统一术语与第一人称口吻；
+- 保持中文（或原文语言）。
+
+禁止：
+
+- 新增/删除数字、价格、百分比、日期；
+- 改变方向判断（看涨/看跌/中性）、时间周期、加减仓意图；
+- 新增目标价、止损、风险预算、约束、事实或新闻；
+- 把用户观点改写成投资建议；
+- 添加原文没有的确定性（如「可能」改成「一定」）；
+- 使用夸张、催促、情绪化措辞。
+
+输出契约：
+
+```json
+{
+  "polished_text": "我认为 BTC 短期可能转空，预计回调至 65,000 附近；但中长期依然看涨，回调可能是下一轮上涨的机会。目前不希望因短期下跌而完全离场，也不使用杠杆。",
+  "change_notes": [
+    {
+      "kind": "CLARITY",
+      "before": "短期可能转空，可能回调到 65000 附近",
+      "after": "短期可能转空，预计回调至 65,000 附近",
+      "reason": "统一数字格式与句式"
+    }
+  ],
+  "warnings": [
+    "原文中的「不使用杠杆」已保留，未新增其他约束"
+  ],
+  "meaning_preserved": true
+}
+```
+
+校验：
+
+| 检查 | 规则 | 失败处理 |
+|---|---|---|
+| 数字集合 | 润色前后的数字 token 集合必须一致 | warning + 高亮，需用户确认 |
+| 方向词 | 看涨/看跌/中性/加仓/减仓/清仓/持有不得翻转 | 阻止自动采用，要求重新润色 |
+| 否定词 | 「不/没有/避免/不希望」数量与语义不得丢失 | warning + 高亮 |
+| 长度 | 0.5x–2x 原文；超限 warning | 不阻断 |
+| 语言 | 与原文一致 | 不一致则失败 |
+| 建议化 | 不得出现「建议你买/卖」等新增指令 | 失败，重新生成 |
+
+**润色不自动保存**：`polished_text` 只存在于响应与 UI；用户点击「采用润色」或手动编辑后，才写入提交请求的 `final_text`。
+
+### 5.5 编辑窗口流程
+
+独立页面（不是聊天面板）：`/streams/{id}/thesis/edit`。
+
+```text
+┌─────────────────────────────────────────────────────┐
+│ Thesis · BTC 长期配置            v3 ACTIVE · 历史   │
+├──────────────────────────┬──────────────────────────┤
+│ 你的原文（可编辑）        │ AI 润色建议（只读/diff）  │
+│ 我认为 BTC 短期可能转空…  │ 我认为 BTC 短期可能转空…  │
+│                          │ [采用润色] [保留原文]     │
+├──────────────────────────┴──────────────────────────┤
+│ 结构化字段：方向 / 周期 / 情景 / 风险 / 约束          │
+│ [AI 帮我整理]                                        │
+├─────────────────────────────────────────────────────┤
+│ 变更摘要 + diff（MATERIAL 时高亮）                    │
+│ [保存草稿] [确认生效]                                 │
+└─────────────────────────────────────────────────────┘
+```
+
+规则：
+
+- `original_text`：用户进入编辑器时的原始输入；手动编辑会更新原文（仍属于用户输入）。
+- `final_text`：用户最终确认的正文；可采用润色，也可手动编辑；为空时回退 `original_text`。
+- 「AI 帮我整理」使用 `final_text or original_text` 作为输入。
+- 提交前展示结构化 diff；MATERIAL 必须点击「确认生效」，MINOR 提交即生效。
+- 历史版本同时展示「原文」与「确认正文」，并标注是否使用过 AI 润色/整理。
+- 对话窗口不能打开这个流程，也不能代替用户点击确认。
+
+数据模型：
+
+| 字段 | 含义 |
+|---|---|
+| `original_text` | 用户原始输入，永不覆盖 |
+| `final_text` | 用户确认正文（可润色/编辑）；空则回退 |
+| `polish_agent_run_id` | 润色 Run，可空 |
+| `source_agent_run_id` | 结构化 Run，可空 |
 
 ---
 
@@ -288,8 +397,9 @@ stateDiagram-v2
 
 ### 6.2 历史视图
 
-- 版本列表：版本号、状态、来源、`change_class`、生效时间、变更摘要。
-- 版本详情：原文、结构化内容、diff、`source_agent_run_id`、确认时间。
+- 文本层面的润色差异单独展示（`original_text` → `final_text`），不写入 `diff_from_previous`；后者只记录结构化字段变化。
+- 版本列表：版本号、状态、来源、`change_class`、生效时间、变更摘要、是否使用过 AI 润色/整理。
+- 版本详情：原文、确认正文（`final_text`）、结构化内容、diff、`source_agent_run_id`、`polish_agent_run_id`、确认时间。
 - 任意两版本对比：并排 diff；默认对比上一版。
 - 旧版本不能删除；可以归档 Stream。
 
@@ -299,15 +409,16 @@ stateDiagram-v2
 
 ### 7.1 对话
 
-- 对话**只读** Thesis：`get_investment_thesis` 只返回 ACTIVE 版本；`get_thesis_history` 返回历史。
+- 对话**只读** Thesis：`get_investment_thesis` 只返回 ACTIVE 版本（优先 `final_text`）；`get_thesis_history` 返回历史。
 - 用户说「帮我改成看空」→ 对话不能写，只能解释并指出编辑器路径。
+- 用户说「帮我润色一下」→ 对话不能触发润色；指向独立编辑器的「AI 润色」。
 - 对话可以引用「你当前 v3 说……」，但不能说「我已经帮你改成 v4」。
 - 对话中的观点变化不会自动成为版本；这是 D13/D14 的硬边界。
 
 ### 7.2 定时分析
 
 - 每次 `MONITOR_ANALYSIS` 固定当次 ACTIVE 版本 ID；运行中 Thesis 变化不影响本次上下文。
-- 下一轮使用新版本，并在 `changes_since_previous` 中解释版本差异。
+- 下一轮使用新版本（优先 `final_text`），并在 `changes_since_previous` 中解释版本差异。
 - 没有 ACTIVE 版本（观察型）时，Agent 只能基于行情与持仓分析，明确声明「没有正式论点」。
 
 ### 7.3 Proposal（v1.2+）
@@ -341,11 +452,13 @@ stateDiagram-v2
 
 警告只展示给用户，不自动修改字段。
 
-### 8.3 原文校验
+### 8.3 原文与润色文本校验
 
 - `original_text` 非空，长度 1–20,000 字符。
+- `final_text` 可空；非空时长度 1–20,000 字符，且必须与 `original_text` 同时保存。
 - 提交时保存原文快照；后续编辑生成新版本，不 UPDATE 旧原文。
-- 原文中的 HTML/脚本按纯文本处理；前端转义渲染。
+- 原文/润色文本中的 HTML/脚本按纯文本处理；前端转义渲染。
+- AI 润色额外校验：数字集合、方向词、否定词、语言一致性；失败时给出 warning 或要求重新润色。
 
 ---
 
@@ -360,6 +473,7 @@ stateDiagram-v2
 | GET | `/thesis/versions/{id}` | 版本详情 |
 | GET | `/thesis/versions/{id}/diff?against={other}` | 版本对比 |
 | POST | `/streams/{id}/thesis/parse` | AI 整理，返回草案；不落库 |
+| POST | `/streams/{id}/thesis/polish` | AI 润色，返回建议；不落库 |
 | POST | `/streams/{id}/thesis/versions` | 提交新版本（MATERIAL → PENDING） |
 | POST | `/thesis/versions/{id}/confirm` | 确认 MATERIAL 版本 |
 | POST | `/thesis/versions/{id}/reject` | 拒绝 |
@@ -416,7 +530,8 @@ stateDiagram-v2
 ### 10.3 版本记录
 
 - `source = AGENT`（结构化由 AI 整理），`source_agent_run_id` 指向解析 Run；
-- `change_class = MATERIAL`（新增下行情景、方向、约束）；
+- 若使用过润色：`final_text` 保存确认正文，`polish_agent_run_id` 指向润色 Run；`original_text` 仍是用户最初输入；
+- `change_class = MATERIAL`（新增下行情景、方向、约束）；纯文字润色不改变结构化内容时为 `MINOR`；
 - 首次版本：`version = 1`，`status = PENDING_CONFIRMATION`；
 - 用户确认后 `ACTIVE`，`confirmed_at = now()`；
 - 下一轮监控固定 `thesis_version_id = v1`。
@@ -432,3 +547,5 @@ stateDiagram-v2
 | T3 | 是否允许多个 PENDING 草案？ | 不允许，只保留一个 |
 | T4 | AI 解析的 `field_confidence` 是否展示？ | v1 不展示，只展示 warnings |
 | T5 | 观察型 Stream 是否需要强制填写 `thesis_statement`？ | 不需要，允许只有原文 |
+| T6 | 润色是否允许调整段落结构？ | 允许；以不改变语义为前提 |
+| T7 | `final_text` 是否可能为空？ | 可以；Agent 回退到 `original_text` |

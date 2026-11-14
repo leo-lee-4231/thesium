@@ -1,7 +1,7 @@
 # 05 · REST API
 
 > 状态：草案 v0.1
-> 对应决策：D6（单租户）、D10（Headless 核心）、D14（只读对话）
+> 对应决策：D6（单租户）、D10（Headless 核心）、D14（只读对话）、D16（AI 润色）
 > 约定：`/api/v1`；JSON；UTC ISO8601；金额/价格用字符串 Decimal；UUID。
 
 ---
@@ -281,6 +281,7 @@ K 线响应：
 | GET | `/thesis/versions/{id}` | 版本详情 |
 | GET | `/thesis/versions/{id}/diff?against={other_id}` | 版本对比 |
 | POST | `/streams/{id}/thesis/parse` | AI 整理，返回草案（不落库） |
+| POST | `/streams/{id}/thesis/polish` | AI 润色，返回建议（不落库） |
 | POST | `/streams/{id}/thesis/versions` | 提交新版本 |
 | PATCH | `/thesis/versions/{id}` | 编辑 PENDING 版本 |
 | POST | `/thesis/versions/{id}/confirm` | 确认 MATERIAL |
@@ -309,19 +310,55 @@ POST /api/v1/streams/{id}/thesis/parse
 
 不落库；编辑器回填后由用户提交。
 
-### 8.2 提交
+### 8.2 润色
+
+```http
+POST /api/v1/streams/{id}/thesis/polish
+{
+  "text": "我认为 BTC 短期可能转空，预计回调至 65000 附近，但长期还是看涨"
+}
+```
+
+响应 `200`：
+
+```json
+{
+  "polished_text": "我认为 BTC 短期可能转空，预计回调至 65,000 附近；但中长期依然看涨。",
+  "change_notes": [
+    {
+      "kind": "CLARITY",
+      "before": "65000",
+      "after": "65,000",
+      "reason": "统一数字格式"
+    }
+  ],
+  "warnings": [],
+  "meaning_preserved": true,
+  "agent_run_id": "uuid"
+}
+```
+
+- 不落库；用户点击「采用润色」或手动编辑后才进入提交。
+- 数字、方向、否定关系发生变化时返回 `warnings`，前端高亮，需用户确认。
+- 润色只允许在编辑器触发；对话接口不提供该能力。
+
+### 8.3 提交
 
 ```http
 POST /api/v1/streams/{id}/thesis/versions
 {
   "original_text": "……",
+  "final_text": "……",
   "structured_content": {"...": "..."},
   "source": "USER",
   "source_agent_run_id": "uuid|null",
+  "polish_agent_run_id": "uuid|null",
   "base_version_id": "uuid|null"
 }
 ```
 
+- `original_text`：用户原始输入，必填。
+- `final_text`：用户确认正文（可为润色版），可空；为空时后端回退到 `original_text`。
 - `MATERIAL` → `201`，`status=PENDING_CONFIRMATION`，返回 diff。
 - `MINOR` → `201`，`status=ACTIVE`。
 - `base_version_id` 与当前 ACTIVE 不一致 → `409 STALE_THESIS`。
@@ -335,6 +372,8 @@ POST /api/v1/streams/{id}/thesis/versions
     "version": 4,
     "status": "PENDING_CONFIRMATION",
     "change_class": "MATERIAL",
+    "original_text": "……",
+    "final_text": "……",
     "diff": [
       {"op": "replace", "path": "/market_outlook/short_term", "before": "NEUTRAL", "after": "BEARISH", "classification": "MATERIAL"}
     ]
@@ -343,7 +382,7 @@ POST /api/v1/streams/{id}/thesis/versions
 }
 ```
 
-### 8.3 确认 / 拒绝
+### 8.4 确认 / 拒绝
 
 ```http
 POST /api/v1/thesis/versions/{id}/confirm

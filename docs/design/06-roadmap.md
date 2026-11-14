@@ -23,12 +23,12 @@
 | M0 | 骨架可启动：Docker Compose、FastAPI、Postgres、Web 壳、CI | 2 | 2 |
 | M1 | 行情 + Stream：Binance、K 线、指标、Stream 页面 | 4 | 6 |
 | M2 | 持仓：事件、快照、风险计算、录入表单 | 4 | 10 |
-| M3 | Thesis：Schema、解析、版本、分级确认、diff | 5 | 15 |
-| M4 | 监控：Runtime、工具、Decision、Scheduler、邮件 | 7 | 22 |
-| M5 | Web 对话：Conversation、SSE、只读工具、语气 | 5 | 27 |
-| M6 | Dashboard 与可追溯性、验收、发布 v1.0 | 3 | 30 |
-| M7 | 飞书只读渠道 + 推送 | 5 | 35 |
-| M8 | 硬化：备份、安全、文档、v1.1 发布 | 2 | 37 |
+| M3 | Thesis：Schema、解析、润色、版本、分级确认、diff | 6 | 16 |
+| M4 | 监控：Runtime、工具、Decision、Scheduler、邮件 | 7 | 23 |
+| M5 | Web 对话：Conversation、SSE、只读工具、语气 | 5 | 28 |
+| M6 | Dashboard 与可追溯性、验收、发布 v1.0 | 3 | 31 |
+| M7 | 飞书只读渠道 + 推送 | 5 | 36 |
+| M8 | 硬化：备份、安全、文档、v1.1 发布 | 2 | 38 |
 
 > M0–M6 是 v1.0；M7–M8 是 v1.1。M4 与 M5 的顺序可交换，但对话依赖 Runtime，不能早于 M4。
 
@@ -102,24 +102,27 @@
 
 ## 6. P3 · Investment Thesis
 
-**目标**：自然语言 → 结构化草案 → diff → 确认 → 版本历史。
+**目标**：自然语言 → 结构化草案 → diff → 确认 → 版本历史；支持 AI 润色。
 
 任务：
 
 - Thesis JSON Schema + Pydantic 校验 + 语义 warning。
 - `THESIS_PARSE` Prompt + 输出契约（draft/unparsed/clarifying/warnings）。
+- `THESIS_POLISH` Prompt + 输出契约（polished_text/change_notes/warnings）；数字/方向/否定校验。
 - 版本写入、MATERIAL/MINOR 判定、PENDING/ACTIVE/SUPERSEDED 状态机。
 - 部分唯一索引（一个 ACTIVE、一个 PENDING）。
 - diff 生成与存储；版本对比 API。
-- Web：编辑器、AI 整理、diff 确认页、历史时间线。
-- 审计：`source_agent_run_id`、`audit_logs`。
+- Web：独立编辑页、AI 润色 diff、AI 整理、结构化字段、确认页、历史时间线。
+- 双文本：`original_text` / `final_text` / `polish_agent_run_id`。
+- 审计：`source_agent_run_id`、`polish_agent_run_id`、`audit_logs`。
 
 验收：
 
 - 原文包含「短期看空到 65,000，中长期看涨」→ 结构化为 BEARISH/BULLISH + DOWN 场景。
+- 点击「AI 润色」→ 文字更清晰，数字/方向/约束不变；用户可采用、拒绝或手动编辑。
 - MATERIAL 修改必须确认；MINOR 直接生效。
-- 旧版本可查；确认后下一轮分析使用新版本。
-- AI 解析失败不丢原文。
+- 旧版本可查；确认后下一轮分析使用 `final_text`。
+- AI 解析/润色失败不丢原文。
 
 ---
 
@@ -359,5 +362,25 @@ alembic upgrade head
 
 - 原计划 v1.0 不含对话；现调整为 **v1.0 含 Web 只读对话**，飞书放 v1.1。
 - 原计划对话可生成 Proposal；现明确 **对话只读**，正式变更走编辑器/表单。
+- 增加 Thesis 编辑器内的 **AI 润色**（`THESIS_POLISH`）：只改表达、不改事实，原文与确认正文双保存。
 - 增加语气与心理支持要求（D15），纳入 P5 验收。
 - 其余（单租户、BTC 现货、Binance、无新闻、分级确认、重要通知）不变。
+
+---
+
+## 18. 本地开发环境
+
+| 项 | 约定 |
+|---|---|
+| Python | `pyenv virtualenv 3.12.8 thesium`；仓库 `.python-version` 指向它 |
+| 后端依赖 | `python -m pip install -e "backend[dev]"`；国内可加 `-i https://mirrors.aliyun.com/pypi/simple/` |
+| Node | nvm 读取 `.nvmrc`（24.21.0）；`npm install` |
+| 前端构建 | `npm run typecheck && npm run build` |
+| Docker Base Image | `PYTHON_IMAGE` / `NODE_IMAGE` / `NGINX_IMAGE` / `POSTGRES_IMAGE` 可配置；Docker Hub 不可达时在 `.env` 指向 DaoCloud 等镜像 |
+| 密钥/配置 | `.env` 不入库；只提交 `.env.example` |
+
+说明：
+
+- 清华 PyPI 源在不同网络可能返回 403；以实际可达的镜像为准，不把某个源写死进仓库。
+- Docker 镜像同理：Dockerfile 使用 build args，不在 Dockerfile 里硬编码镜像站。
+- 本地开发仍以 Docker Compose 为主；`make dev-api` / `make dev-web` 只用于快速迭代。

@@ -21,14 +21,14 @@ An auditable, self-hosted personal investment agent: it remembers what you actua
 - 不是自动交易机器人，不连接交易所下单；
 - 不是量化回测平台，不需要你写指标规则；
 - 不是通用聊天助手，对话永远锚定在你的投资流上；
-- 不是「AI 替你改观点」：AI 只能提议，正式变更必须你确认。
+- 不是「AI 替你改观点」：AI 可以润色表达、整理结构，但正式变更必须你确认。
 
 ## 核心原则
 
 1. **三分**：客观市场事实 / 用户真实持仓 / 用户正式观点 / AI 推断，互不覆盖。
 2. **只追加**：Thesis、持仓事件、决策、对话消息都是历史，不静默改写。
 3. **可追溯**：每次分析固定证件版本、持仓快照、行情时间与模型。
-4. **对话是思考空间，Thesis 是承诺**：聊天只读，不能改 Thesis 或持仓；正式变更由用户在编辑器中确认后生效。
+4. **对话是思考空间，Thesis 是承诺**：聊天只读；正式变更由用户在独立编辑器中确认后生效，AI 润色只改表达、不改事实。
 5. **渠道是传输层**：Web、飞书共用同一个 Agent Runtime，不出现两套说法。
 6. **数据过期就承认**：`STALE` / `UNKNOWN` 不允许伪装成实时。
 
@@ -59,12 +59,38 @@ Web (Vue 3)          Feishu Bot          future: WeCom / MCP
 
 Python 3.12 · FastAPI · SQLAlchemy 2.0 async · Pydantic v2 · Alembic · PostgreSQL 16 · Vue 3 + TypeScript + Vite + ECharts · Docker Compose · pytest · GitHub Actions
 
+## 快速开始（P0 骨架）
+
+前置：Docker + Docker Compose；本机开发另需 pyenv 与 nvm。
+
+```bash
+# Python：项目专用 pyenv virtualenv
+pyenv virtualenv 3.12.8 thesium
+pyenv local thesium
+python -m pip install -e "backend[dev]" -i https://mirrors.aliyun.com/pypi/simple/
+
+# Node：读取 .nvmrc
+nvm use            # 24.21.0
+cd frontend && npm install && cd ..
+
+# 一键启动 Postgres + API + worker + web
+cp .env.example .env
+make up
+# http://127.0.0.1:8080
+```
+
+当前 P0 只提供健康检查与空的 Stream 列表；行情、持仓、Thesis、分析与对话在 P1–P5 逐步加入。
+
+> Docker Hub 不可达时，在 `.env` 里把 `PYTHON_IMAGE` / `NODE_IMAGE` / `NGINX_IMAGE` / `POSTGRES_IMAGE` 指到可用镜像（示例见 `.env.example`），无需改 Dockerfile。
+
+常用命令：`make logs`、`make migrate`、`make test`、`make dev-api`、`make dev-web`。
+
 ## 文档
 
 | 文档 | 内容 |
 |---|---|
 | [设计文档索引](docs/design/README.md) | 阅读顺序与当前结论 |
-| [00 · 架构决策](docs/design/00-decisions.md) | D1–D14，含对话/渠道新增提案 |
+| [00 · 架构决策](docs/design/00-decisions.md) | D1–D16，含对话/渠道/润色边界 |
 | [01 · 领域模型](docs/design/01-domain-model.md) | 聚合、不变量、ER 图、表与索引 |
 | [02 · Investment Thesis](docs/design/02-thesis.md) | 结构化 Schema、分级确认、版本状态机 |
 | [03 · Agent Runtime](docs/design/03-agent-runtime.md) | Prompt 分层、工具契约、Run 生命周期 |
@@ -75,7 +101,7 @@ Python 3.12 · FastAPI · SQLAlchemy 2.0 async · Pydantic v2 · Alembic · Post
 
 ## 状态
 
-**设计阶段，尚不可运行。** v1.0 范围已确定：BTC 现货闭环 + Web 只读对话；飞书 v1.1。下一步：P0 骨架（Docker Compose + FastAPI + Postgres + Web 壳）。
+**P0 骨架已可启动，业务功能尚未实现。** v1.0 范围：BTC 现货闭环 + Web 只读对话 + Thesis 编辑器（含 AI 润色/整理）；飞书 v1.1。下一步 P1：Binance 行情、K 线与指标。
 
 ## 许可证
 
