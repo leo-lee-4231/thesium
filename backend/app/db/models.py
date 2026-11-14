@@ -10,6 +10,7 @@ from sqlalchemy import (
     LargeBinary,
     Numeric,
     String,
+    Text,
     UniqueConstraint,
     func,
     text,
@@ -342,6 +343,38 @@ class DerivativePositionSnapshot(Base):
     source_event_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("derivative_position_events.id")
     )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class InvestmentThesis(Base):
+    __tablename__ = "investment_theses"
+    __table_args__ = (
+        UniqueConstraint("stream_id", "version", name="uq_thesis_stream_version"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    stream_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("investment_streams.id"), nullable=False, index=True
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="USER")
+    change_class: Mapped[str] = mapped_column(String(16), nullable=False)
+    original_text: Mapped[str] = mapped_column(Text, nullable=False)
+    final_text: Mapped[str | None] = mapped_column(Text)
+    structured_content: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    diff_from_previous: Mapped[list | None] = mapped_column(JSONB)
+    source_agent_run_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    polish_agent_run_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    effective_from: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    effective_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

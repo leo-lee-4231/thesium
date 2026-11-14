@@ -21,5 +21,6 @@ async def get_meta() -> MetaOut:
             "market:okx",
             "portfolio:spot",
             "portfolio:perp",
+            "thesis:versions",
         ],
     )

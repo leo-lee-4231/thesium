@@ -290,13 +290,26 @@ onMounted(() => {
     <PositionPanel v-if="stream" :stream-id="stream.id" :symbol="symbol" />
 
     <div class="placeholder-grid">
-      <article class="card">
+      <RouterLink
+        v-if="stream"
+        class="card thesis-card"
+        :to="`/products/${symbol.toLowerCase()}/thesis`"
+      >
+        <header class="card-head">
+          <span class="card-kicker">Thesis</span>
+          <span class="phase">打开 →</span>
+        </header>
+        <h2>投资论点</h2>
+        <p class="muted">独立编辑器、AI 润色/整理、版本化与分级确认；旧版本可查。</p>
+      </RouterLink>
+
+      <article v-else class="card">
         <header class="card-head">
           <span class="card-kicker">Thesis</span>
           <span class="phase">P3</span>
         </header>
         <h2>投资论点</h2>
-        <p class="muted">独立编辑器、AI 润色/整理、版本化与分级确认；旧版本可查。</p>
+        <p class="muted">创建投资产品后，在这里写 Thesis、用 AI 润色/整理并确认版本。</p>
       </article>
 
       <article class="card">

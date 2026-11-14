@@ -206,6 +206,53 @@ export interface DerivativeEvent {
   note: string | null
 }
 
+export interface ThesisDiffItem {
+  op: string
+  path: string
+  before: unknown
+  after: unknown
+  classification: 'MATERIAL' | 'MINOR'
+}
+
+export interface ThesisVersion {
+  id: string
+  stream_id: string
+  version: number
+  status: 'PENDING_CONFIRMATION' | 'ACTIVE' | 'SUPERSEDED' | 'REJECTED'
+  source: string
+  change_class: 'MATERIAL' | 'MINOR'
+  original_text: string
+  final_text: string | null
+  structured_content: Record<string, unknown>
+  diff_from_previous: ThesisDiffItem[] | null
+  confirmed_at: string | null
+  effective_from: string
+  effective_until: string | null
+  created_at: string
+}
+
+export interface ThesisCreateInput {
+  original_text: string
+  final_text?: string
+  structured_content: Record<string, unknown>
+  source?: 'USER' | 'AGENT' | 'SYSTEM'
+  base_version_id?: string
+}
+
+export interface ThesisPolishResult {
+  polished_text: string
+  change_notes: { kind: string; before: string; after: string; reason: string }[]
+  warnings: string[]
+  meaning_preserved: boolean
+}
+
+export interface ThesisParseResult {
+  draft: Record<string, unknown>
+  unparsed: { text: string; reason: string }[]
+  clarifying_questions: string[]
+  warnings: string[]
+}
+
 export interface Stream {
   id: string
   name: string
@@ -231,7 +278,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
   })
   if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}`)
+    const body = await response.json().catch(() => null)
+    const message = body?.error?.message ?? `${response.status} ${response.statusText}`
+    throw new Error(message)
   }
   return (await response.json()) as T
 }
@@ -241,6 +290,31 @@ export const api = {
   meta: () => request<Meta>('/api/v1/meta'),
   assets: () => request<Asset[]>('/api/v1/assets'),
   streams: () => request<Stream[]>('/api/v1/streams'),
+  thesis: (streamId: string) => request<ThesisVersion | null>(`/api/v1/streams/${streamId}/thesis`),
+  thesisVersions: (streamId: string) =>
+    request<ThesisVersion[]>(`/api/v1/streams/${streamId}/thesis/versions`),
+  createThesis: (streamId: string, payload: ThesisCreateInput) =>
+    request<{ version: ThesisVersion; requires_confirmation: boolean }>(
+      `/api/v1/streams/${streamId}/thesis/versions`,
+      { method: 'POST', body: JSON.stringify(payload) },
+    ),
+  confirmThesis: (versionId: string) =>
+    request<ThesisVersion>(`/api/v1/thesis/versions/${versionId}/confirm`, { method: 'POST' }),
+  rejectThesis: (versionId: string, reason?: string) =>
+    request<ThesisVersion>(`/api/v1/thesis/versions/${versionId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: reason ?? null }),
+    }),
+  parseThesis: (streamId: string, text: string) =>
+    request<ThesisParseResult>(`/api/v1/streams/${streamId}/thesis/parse`, {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }),
+  polishThesis: (streamId: string, text: string) =>
+    request<ThesisPolishResult>(`/api/v1/streams/${streamId}/thesis/polish`, {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }),
   createStream: (payload: StreamCreate) =>
     request<Stream>('/api/v1/streams', {
       method: 'POST',

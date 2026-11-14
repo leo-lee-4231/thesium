@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=("../.env", ".env"),
         env_file_encoding="utf-8",
         env_prefix="THESIUM_",
         extra="ignore",
@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     port: int = 8000
 
     database_url: str = "postgresql+asyncpg://thesium:thesium@localhost:5432/thesium"
+
+    llm_base_url: str | None = None
+    llm_api_key: str | None = None
+    llm_model: str | None = None
     admin_token: str | None = None
     secret_key: str | None = None
 

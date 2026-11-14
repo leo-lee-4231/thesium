@@ -83,6 +83,8 @@ make up
 
 OKX 在当前网络需要代理时，启动 API 前设置 `HTTPS_PROXY`（例如 `HTTPS_PROXY=http://127.0.0.1:7897 make dev-api`）。
 
+AI 润色/整理需要 OpenAI 兼容模型：设置 `THESIUM_LLM_BASE_URL` / `THESIUM_LLM_MODEL` / `THESIUM_LLM_API_KEY` 后重启 API；未配置时手动编辑不受影响，AI 按钮会返回明确错误。
+
 > Docker Hub 不可达时，在 `.env` 里把 `PYTHON_IMAGE` / `NODE_IMAGE` / `NGINX_IMAGE` / `POSTGRES_IMAGE` 指到可用镜像（示例见 `.env.example`），无需改 Dockerfile。
 
 常用命令：`make logs`、`make migrate`、`make test`、`make dev-api`、`make dev-web`。备份：`make backup`（写入 `backups/`，用 `pg_dump`）。
@@ -103,7 +105,7 @@ OKX 在当前网络需要代理时，启动 API 前设置 `HTTPS_PROXY`（例如
 
 ## 状态
 
-**P2 已完成。** OKX 行情、产品创建、现货成交/修正、USDT 本位永续持仓、事件/快照、uPnL/ROE/距清算价与风险面板已可用；下一步 P3：Investment Thesis 编辑器与版本。v1.0 还包括 Web 只读对话；飞书 v1.1。
+**P3 已完成。** Thesis 编辑器、AI 润色/整理接口、版本历史、MATERIAL/MINOR 分级确认与 diff 已可用；现货/永续持仓与 OKX 行情也已接通。下一步 P4：Agent Runtime + 定时分析 + 通知。v1.0 还包括 Web 只读对话；飞书 v1.1。
 
 ## 许可证
 

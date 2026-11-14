@@ -154,3 +154,21 @@ class DerivativeSimulate(BaseModel):
     ]
     size_change_pct: Decimal = Field(default=Decimal("25"), ge=0, le=100)
     assumed_mark: Decimal = Field(gt=0)
+
+
+class ThesisVersionCreate(BaseModel):
+    original_text: str = Field(min_length=1, max_length=20000)
+    final_text: str | None = Field(default=None, max_length=20000)
+    structured_content: dict = Field(default_factory=dict)
+    source: Literal["USER", "AGENT", "SYSTEM"] = "USER"
+    source_agent_run_id: UUID | None = None
+    polish_agent_run_id: UUID | None = None
+    base_version_id: UUID | None = None
+
+
+class ThesisTextRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=20000)
+
+
+class ThesisRejectRequest(BaseModel):
+    reason: str | None = Field(default=None, max_length=500)
