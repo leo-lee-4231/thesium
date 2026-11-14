@@ -127,7 +127,7 @@ AgentRuntime
 要求：
 1. 只整理，不新增用户没说的目标、价位、风险数字或策略。
 2. 输出 {draft, unparsed, clarifying_questions, warnings}。
-3. 不确定的字段留空；缺失信息用 clarifying_questions 提问，不猜测。
+3. 不确定的字段留空；只有原文真正歧义才用 clarifying_questions（最多 3 条），不要要求用户预测未来或补全未提供的参数。
 4. 不做投资建议，不评价用户观点对错。
 ```
 

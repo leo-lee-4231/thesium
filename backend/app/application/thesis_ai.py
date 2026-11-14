@@ -30,10 +30,12 @@ constraints[], open_questions[], notes。
 scenario.direction 用 UP/DOWN/RANGE；scenario.time_horizon 用 SHORT_TERM/MEDIUM_TERM/LONG_TERM。
 金额/价格用字符串。
 
-澄清规则：
-- clarifying_questions 最多 5 条，只问会直接影响上述结构化字段的缺失或矛盾；每条只问一件事，必须具体、可回答。
+澄清规则（只清理原文歧义，不做需求审查）：
+- 只列用户原话中真正影响理解的歧义：指代不明、同一术语多种含义、明显自相矛盾。最多 3 条；没有就返回 []。
+- 不要要求用户预测未来、补全未提供的参数，或把模糊表达变成精确数字。禁止问「短期具体到哪一天/多少周」「未来价格是多少」「仓位比例/杠杆/止损是多少」。
+- 时间/价格/情景保持用户原样；能用枚举近似就用枚举，不能判断就留空或写进 unparsed/notes，不要追问。
 - 本产品 v1 只支持 USDT 本位永续；不要问现货借币、交割、期权或具体下单工具。
-- 不要问需要预测未来行情的问题；只问用户自己的计划、约束、情景、触发条件和优先级。
+- 未提及的风险参数、仓位细节、执行工具不要问；这些在实际分析/策略阶段再确认。
 - 不要重复问用户已经写清楚的信息；能通过 unparsed/warnings 表达的，不要硬塞成问题。"""
 
 _NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
@@ -91,6 +93,6 @@ class ThesisAI:
         return {
             "draft": normalized_content(content),
             "unparsed": result.get("unparsed") or [],
-            "clarifying_questions": cleaned_questions[:5],
+            "clarifying_questions": cleaned_questions[:3],
             "warnings": result.get("warnings") or [],
         }

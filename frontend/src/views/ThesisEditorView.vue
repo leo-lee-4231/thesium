@@ -318,11 +318,11 @@ onMounted(() => {
         <div v-if="parseResult" class="ai-result">
           <strong>整理结果</strong>
           <p class="muted">
-            AI 发现的缺失或歧义会列在下面。它们只是建议，不阻塞保存，也不会自动改你的原文或 JSON；
-            补充原文后重新整理，或直接在 JSON 里修正即可。
+            AI 只标出你原话里真正影响理解的歧义。它不会要求你预测未来或补全未提供的参数；
+            这些只是建议，不阻塞保存，也不会自动改你的原文或 JSON。实际分析时再边走边确认。
           </p>
           <p v-if="parseResult.clarifying_questions.length" class="muted">
-            建议澄清（{{ parseResult.clarifying_questions.length }} 条，最多 5 条）：
+            原文歧义（可选，最多 3 条）：
           </p>
           <ul class="warning-list">
             <li v-for="question in parseResult.clarifying_questions" :key="question">{{ question }}</li>

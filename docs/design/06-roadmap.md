@@ -139,6 +139,7 @@
 - Tool Registry：Market/Portfolio/Thesis/Decision 读取工具；越权与参数校验。
 - ContextBuilder：监控上下文；固定 Thesis/现货快照/永续快照/Market 版本。
 - Prompt：system/monitor v1；输出 Decision Schema（含 `derivative_recommendation.stop_loss`）；止损由 `derive_stop_loss` 计算。
+- 运行时澄清：Thesis 缺风险参数时不阻塞分析；Decision 用 `REVIEW`/`WAIT` 并列出缺失项，不发明止损/杠杆；可在对话中继续确认。
 - OutputValidator：Schema + 业务规则 + 合约动作方向校验 + 重试。
 - `agent_runs` / `decisions` 持久化；1:1 约束。
 - Scheduler：APScheduler 或 Worker 内 cron；`jobs` 表 + `FOR UPDATE SKIP LOCKED`。
