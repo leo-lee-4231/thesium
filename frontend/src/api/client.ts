@@ -224,6 +224,89 @@ export interface LLMConfigUpdate {
   clear_api_key?: boolean
 }
 
+export interface EvidenceItem {
+  claim: string
+  kind: 'FACT' | 'INFERENCE'
+  source_tool: string
+  as_of: string | null
+  strength: 'STRONG' | 'MODERATE' | 'WEAK'
+}
+
+export interface StopLossPlan {
+  price: string
+  source: 'USER' | 'DERIVED'
+  risk_amount_usd: string | null
+  risk_pct_equity: string | null
+  distance_pct: string | null
+  warnings: string[]
+}
+
+export interface DerivativeRecommendation {
+  action: string
+  size_change_pct: string | null
+  rationale: string
+  invalidation_conditions: unknown[]
+  stop_loss: StopLossPlan | null
+}
+
+export interface Decision {
+  id: string
+  stream_id: string
+  agent_run_id: string
+  schema_version: string
+  decision: string
+  confidence: string
+  priority: string
+  summary: string
+  evidence_for: EvidenceItem[]
+  evidence_against: EvidenceItem[]
+  thesis_alignment: {
+    status: string
+    explanation: string
+    conflicting_fields: string[]
+  }
+  position_impact: {
+    assessment: string
+    exposure_usd: string | null
+    unrealized_pnl_usd: string | null
+    risk_budget_usage_pct: string | null
+    notes: string | null
+  }
+  derivative_recommendation: DerivativeRecommendation | null
+  changes_since_previous: unknown[]
+  invalidation_conditions: unknown[]
+  data_quality: {
+    status: string
+    missing: string[]
+    staleness: string
+    as_of: string | null
+  }
+  notification_recommendation: {
+    notify: boolean
+    reason: string | null
+    suggested_priority: string | null
+  }
+  created_at: string
+}
+
+export interface AgentRun {
+  id: string
+  status: string
+  task_type: string
+  model: string | null
+  prompt_version: string
+  latency_ms: number | null
+  error_code: string | null
+  error_message: string | null
+  started_at: string
+  finished_at: string | null
+}
+
+export interface AnalyzeResult {
+  run: AgentRun
+  decision: Decision
+}
+
 export interface ThesisDiffItem {
   op: string
   path: string
@@ -308,6 +391,12 @@ export const api = {
   meta: () => request<Meta>('/api/v1/meta'),
   assets: () => request<Asset[]>('/api/v1/assets'),
   streams: () => request<Stream[]>('/api/v1/streams'),
+  analyze: (streamId: string) =>
+    request<AnalyzeResult>(`/api/v1/streams/${streamId}/analyze`, { method: 'POST' }),
+  decisions: (streamId: string) =>
+    request<Decision[]>(`/api/v1/streams/${streamId}/decisions`),
+  agentRuns: (streamId: string) =>
+    request<AgentRun[]>(`/api/v1/streams/${streamId}/agent-runs`),
   llmStatus: () => request<LLMStatus>('/api/v1/settings/llm'),
   saveLlmConfig: (payload: LLMConfigUpdate) =>
     request<LLMStatus>('/api/v1/settings/llm', {

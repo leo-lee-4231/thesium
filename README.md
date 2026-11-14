@@ -119,7 +119,7 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 
 ## 状态
 
-**P3 已完成。** Thesis 编辑器、AI 润色/整理接口、版本历史、MATERIAL/MINOR 分级确认与 diff 已可用；现货/永续持仓与 OKX 行情也已接通。下一步 P4：Agent Runtime + 定时分析 + 通知。v1.0 还包括 Web 只读对话；飞书 v1.1。
+**P4 第一块已完成。** 手动「立即分析」、Agent Run/Decision 持久化、决策面板已跑通真实 LLM 分析；下一步 P4 剩余项：定时调度与邮件通知。Thesis、行情、现货/永续持仓均已接通；v1.0 还包括 Web 只读对话；飞书 v1.1。
 
 ## 许可证
 

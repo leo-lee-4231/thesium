@@ -31,6 +31,9 @@ class LLMProviderService:
             select(LLMProvider).order_by(LLMProvider.created_at.asc()).limit(1)
         )
 
+    async def current(self) -> LLMProvider | None:
+        return await self._row()
+
     async def config(self) -> LLMConfig | None:
         row = await self._row()
         if row is not None and row.base_url and row.model:

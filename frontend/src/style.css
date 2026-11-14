@@ -1406,3 +1406,225 @@ a {
   margin: -4px 0 10px;
   font-size: 11px;
 }
+
+/* Agent decisions */
+.decision-panel {
+  margin-top: 16px;
+  padding: 26px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.decision-hint {
+  margin: -6px 0 14px;
+}
+
+.decision-card {
+  margin-top: 14px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.decision-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.decision-badge {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.decision-badge.buy {
+  background: rgba(110, 231, 183, 0.14);
+  color: var(--accent);
+}
+
+.decision-badge.sell,
+.decision-badge.reduce {
+  background: rgba(248, 113, 113, 0.14);
+  color: var(--danger);
+}
+
+.decision-badge.wait,
+.decision-badge.review {
+  background: rgba(245, 194, 107, 0.14);
+  color: var(--amber);
+}
+
+.decision-badge.hold {
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--muted);
+}
+
+.decision-badge.small {
+  padding: 2px 6px;
+  font-size: 9px;
+}
+
+.priority-chip {
+  padding: 3px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.decision-time {
+  margin-left: auto;
+}
+
+.decision-summary {
+  margin: 14px 0 12px;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.decision-meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.decision-meta > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+
+.decision-meta span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.decision-meta strong {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.derivative-plan {
+  margin: 14px 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.derivative-plan header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stop-loss-box {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 9px 10px;
+  border: 1px solid rgba(245, 194, 107, 0.2);
+  border-radius: 8px;
+  color: var(--amber);
+  font-size: 11px;
+}
+
+.warning-inline {
+  width: 100%;
+  color: var(--danger);
+}
+
+.evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.evidence-grid h3 {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.evidence-grid ul {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.evidence-grid li {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.decision-history {
+  margin-top: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.decision-history summary {
+  padding: 10px 12px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.decision-history ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0 12px 12px;
+  list-style: none;
+}
+
+.decision-history li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+@media (max-width: 900px) {
+  .decision-meta,
+  .evidence-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .decision-panel {
+    padding: 18px;
+  }
+}
+
+@media (max-width: 600px) {
+  .decision-meta,
+  .evidence-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .decision-time {
+    margin-left: 0;
+    width: 100%;
+  }
+}

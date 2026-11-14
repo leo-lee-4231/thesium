@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { api, type Asset, type Candle, type MarketOverview, type Stream } from '@/api/client'
+import DecisionPanel from '@/components/DecisionPanel.vue'
 import PositionPanel from '@/components/PositionPanel.vue'
 import PriceChart from '@/components/PriceChart.vue'
 
@@ -288,6 +289,7 @@ onMounted(() => {
     </section>
 
     <PositionPanel v-if="stream" :stream-id="stream.id" :symbol="symbol" />
+    <DecisionPanel v-if="stream" :stream-id="stream.id" />
 
     <div class="placeholder-grid">
       <RouterLink

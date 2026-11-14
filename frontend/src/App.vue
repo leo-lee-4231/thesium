@@ -15,7 +15,7 @@ import { RouterLink, RouterView } from 'vue-router'
       <nav class="nav">
         <RouterLink to="/">Dashboard</RouterLink>
         <RouterLink to="/settings">Settings</RouterLink>
-        <span class="phase-pill">P3 · thesis</span>
+        <span class="phase-pill">P4 · agent</span>
       </nav>
     </header>
 
