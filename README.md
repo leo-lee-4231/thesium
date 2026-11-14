@@ -91,6 +91,12 @@ AI 润色/整理需要 OpenAI 兼容模型。打开 http://127.0.0.1:5173/settin
 
 配置保存到 PostgreSQL，API Key 加密存储、前端只显示末 4 位；支持「测试连接」。保存后立即生效，无需重启 API。
 
+本地开发会用 `backend/.thesium-secret` 自动生成加密密钥（已 gitignore）。Docker/自托管建议在 `.env` 设置 `THESIUM_SECRET_KEY`，否则重建容器会丢失密钥、已保存的 API Key 需要重新输入：
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
 环境变量 `THESIUM_LLM_BASE_URL/MODEL/API_KEY` 仍可作为数据库未配置时的回退；`GET /api/v1/settings/llm` 可查看当前来源与状态。未配置时手动编辑 Thesis 不受影响，AI 按钮会提示去 Settings。
 
 > Docker Hub 不可达时，在 `.env` 里把 `PYTHON_IMAGE` / `NODE_IMAGE` / `NGINX_IMAGE` / `POSTGRES_IMAGE` 指到可用镜像（示例见 `.env.example`），无需改 Dockerfile。
