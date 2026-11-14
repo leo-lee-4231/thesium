@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { api, type Asset, type Candle, type MarketOverview, type Stream } from '@/api/client'
+import PositionPanel from '@/components/PositionPanel.vue'
 import PriceChart from '@/components/PriceChart.vue'
 
 type Timeframe = '1h' | '4h' | '1d'
@@ -274,17 +275,19 @@ onMounted(() => {
         <p class="muted">观察数据，不参与现货或合约持仓的盈亏计算。</p>
       </article>
 
-      <article class="card">
+      <article v-if="!stream" class="card">
         <header class="card-head">
           <span class="card-kicker">Position</span>
           <span class="phase">P2</span>
         </header>
         <h2>真实持仓</h2>
         <p class="muted">
-          现货成交/修正 + USDT 本位永续持仓；用户录入清算价，本地算 uPnL、ROE 与距清算价距离。
+          创建投资产品后，可在这里记录现货成交与 USDT 本位永续持仓；用户录入清算价，本地算 uPnL、ROE 与距清算价距离。
         </p>
       </article>
     </section>
+
+    <PositionPanel v-if="stream" :stream-id="stream.id" :symbol="symbol" />
 
     <div class="placeholder-grid">
       <article class="card">

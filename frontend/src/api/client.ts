@@ -104,6 +104,108 @@ export interface StreamCreate {
   agent_enabled: boolean
 }
 
+export interface SpotState {
+  quantity: string
+  avg_cost: string
+  realized_pnl: string
+  fee_paid: string
+}
+
+export interface SpotMetrics {
+  mark_price: string | null
+  market_value: string | null
+  unrealized_pnl: string | null
+  unrealized_pnl_pct: string | null
+  cost_basis: string
+}
+
+export interface SpotPortfolio {
+  state: SpotState
+  metrics: SpotMetrics
+  version: number
+}
+
+export interface DerivativeState {
+  side: 'LONG' | 'SHORT'
+  quantity_base: string
+  entry_price: string
+  leverage: string
+  margin: string
+  liquidation_price: string | null
+  realized_pnl: string
+  funding_fees: string
+}
+
+export interface DerivativeMetrics {
+  mark_price: string | null
+  notional: string | null
+  unrealized_pnl: string | null
+  roe: string | null
+  liq_distance_pct: string | null
+  margin_ratio_pct: string | null
+  effective_leverage: string | null
+}
+
+export interface DerivativePortfolio {
+  state: DerivativeState
+  metrics: DerivativeMetrics
+  version: number
+}
+
+export interface Portfolio {
+  spot: SpotPortfolio
+  derivative: DerivativePortfolio | null
+  warnings: string[]
+}
+
+export interface SpotEventInput {
+  kind: 'BUY' | 'SELL' | 'OPENING' | 'CORRECTION'
+  quantity: string
+  price?: string
+  avg_cost?: string
+  fee?: string
+  occurred_at: string
+  note?: string
+}
+
+export interface DerivativeEventInput {
+  kind: 'OPEN' | 'INCREASE' | 'REDUCE' | 'CLOSE' | 'ADJUST_MARGIN' | 'FUNDING' | 'CORRECTION'
+  side?: 'LONG' | 'SHORT'
+  quantity_base?: string
+  price?: string
+  leverage?: string
+  margin_mode?: 'ISOLATED' | 'CROSS'
+  margin?: string
+  liquidation_price?: string
+  fee?: string
+  margin_delta?: string
+  funding_amount?: string
+  occurred_at: string
+  note?: string
+}
+
+export interface PositionEvent {
+  id: string
+  kind: string
+  side: string | null
+  quantity: string | null
+  price: string | null
+  fee: string
+  occurred_at: string
+  note: string | null
+}
+
+export interface DerivativeEvent {
+  id: string
+  kind: string
+  side: string
+  quantity_base: string | null
+  price: string | null
+  fee: string
+  occurred_at: string
+  note: string | null
+}
+
 export interface Stream {
   id: string
   name: string
@@ -141,6 +243,21 @@ export const api = {
   streams: () => request<Stream[]>('/api/v1/streams'),
   createStream: (payload: StreamCreate) =>
     request<Stream>('/api/v1/streams', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  portfolio: (streamId: string) => request<Portfolio>(`/api/v1/streams/${streamId}/portfolio`),
+  spotEvents: (streamId: string) =>
+    request<PositionEvent[]>(`/api/v1/streams/${streamId}/position-events`),
+  derivativeEvents: (streamId: string) =>
+    request<DerivativeEvent[]>(`/api/v1/streams/${streamId}/derivative-position-events`),
+  createSpotEvent: (streamId: string, payload: SpotEventInput) =>
+    request<Portfolio>(`/api/v1/streams/${streamId}/position-events`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  createDerivativeEvent: (streamId: string, payload: DerivativeEventInput) =>
+    request<Portfolio>(`/api/v1/streams/${streamId}/derivative-position-events`, {
       method: 'POST',
       body: JSON.stringify(payload),
     }),

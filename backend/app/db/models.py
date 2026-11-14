@@ -186,3 +186,162 @@ class MarketSnapshot(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class Position(Base):
+    __tablename__ = "positions"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    stream_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("investment_streams.id"), nullable=False, unique=True
+    )
+    instrument_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("instruments.id"), nullable=False
+    )
+    quantity: Mapped[Decimal] = mapped_column(Numeric(38, 18), nullable=False, default=0)
+    avg_cost: Mapped[Decimal] = mapped_column(Numeric(38, 18), nullable=False, default=0)
+    cost_currency: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="USDT", server_default="USDT"
+    )
+    realized_pnl: Mapped[Decimal] = mapped_column(Numeric(38, 18), nullable=False, default=0)
+    fee_paid: Mapped[Decimal] = mapped_column(Numeric(38, 18), nullable=False, default=0)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class PositionEvent(Base):
+    __tablename__ = "position_events"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    stream_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("investment_streams.id"), nullable=False, index=True
+    )
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    side: Mapped[str | None] = mapped_column(String(8))
+    quantity: Mapped[Decimal | None] = mapped_column(Numeric(38, 18))
+    price: Mapped[Decimal | None] = mapped_column(Numeric(38, 18))
+    fee: Mapped[Decimal] = mapped_column(Numeric(38, 18), nullable=False, default=0)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    note: Mapped[str | None] = mapped_column(String(500))
+    source: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="MANUAL", server_default="MANUAL"
+    )
+    before_state: Mapped[dict | None] = mapped_column(JSONB)
+    after_state: Mapped[dict | None] = mapped_column(JSONB)
+    resulting_snapshot_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class PositionSnapshot(Base):
+    __tablename__ = "position_snapshots"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    stream_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("investment_streams.id"), nullable=False, index=True
+    )
+    position_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    quantity: Mapped[Decimal] = mapped_column(Numeric(38, 18), nullable=False)
+    avg_cost: Mapped[Decimal] = mapped_column(Numeric(38, 18), nullable=False)
+    cost_currency: Mapped[str] = mapped_column(String(16), nullable=False)
+    realized_pnl: Mapped[Decimal] = mapped_column(Numeric(38, 18), nullable=False, default=0)
+    source_event_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("position_events.id")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class DerivativePosition(Base):
+    __tablename__ = "derivative_positions"
+    __table_args__ = (
+        UniqueConstraint("stream_id", "instrument_id", name="uq_derivative_position_stream"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    stream_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("investment_streams.id"), nullable=False, index=True
+    )
+    instrument_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("instruments.id"), nullable=False
+    )
+    side: Mapped[str] = mapped_column(String(8), nullable=False)
+    quantity_base: Mapped[Decimal] = mapped_column(Numeric(38, 18), nullable=False, default=0)
+    entry_price: Mapped[Decimal] = mapped_column(Numeric(38, 18), nullable=False, default=0)
+    leverage: Mapped[Decimal] = mapped_column(Numeric(10, 4), nullable=False, default=1)
+    margin_mode: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="ISOLATED", server_default="ISOLATED"
+    )
+    margin: Mapped[Decimal] = mapped_column(Numeric(38, 18), nullable=False, default=0)
+    liquidation_price: Mapped[Decimal | None] = mapped_column(Numeric(38, 18))
+    realized_pnl: Mapped[Decimal] = mapped_column(Numeric(38, 18), nullable=False, default=0)
+    funding_fees: Mapped[Decimal] = mapped_column(Numeric(38, 18), nullable=False, default=0)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class DerivativePositionEvent(Base):
+    __tablename__ = "derivative_position_events"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    stream_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("investment_streams.id"), nullable=False, index=True
+    )
+    position_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("derivative_positions.id"), nullable=False, index=True
+    )
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    side: Mapped[str] = mapped_column(String(8), nullable=False)
+    quantity_base: Mapped[Decimal | None] = mapped_column(Numeric(38, 18))
+    price: Mapped[Decimal | None] = mapped_column(Numeric(38, 18))
+    fee: Mapped[Decimal] = mapped_column(Numeric(38, 18), nullable=False, default=0)
+    margin_delta: Mapped[Decimal | None] = mapped_column(Numeric(38, 18))
+    funding_amount: Mapped[Decimal | None] = mapped_column(Numeric(38, 18))
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    note: Mapped[str | None] = mapped_column(String(500))
+    before_state: Mapped[dict | None] = mapped_column(JSONB)
+    after_state: Mapped[dict | None] = mapped_column(JSONB)
+    resulting_snapshot_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class DerivativePositionSnapshot(Base):
+    __tablename__ = "derivative_position_snapshots"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    stream_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("investment_streams.id"), nullable=False, index=True
+    )
+    position_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("derivative_positions.id"), nullable=False, index=True
+    )
+    position_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    side: Mapped[str] = mapped_column(String(8), nullable=False)
+    quantity_base: Mapped[Decimal] = mapped_column(Numeric(38, 18), nullable=False)
+    entry_price: Mapped[Decimal] = mapped_column(Numeric(38, 18), nullable=False)
+    leverage: Mapped[Decimal] = mapped_column(Numeric(10, 4), nullable=False)
+    margin_mode: Mapped[str] = mapped_column(String(16), nullable=False)
+    margin: Mapped[Decimal] = mapped_column(Numeric(38, 18), nullable=False)
+    liquidation_price: Mapped[Decimal | None] = mapped_column(Numeric(38, 18))
+    mark_price: Mapped[Decimal | None] = mapped_column(Numeric(38, 18))
+    notional: Mapped[Decimal | None] = mapped_column(Numeric(38, 18))
+    unrealized_pnl: Mapped[Decimal | None] = mapped_column(Numeric(38, 18))
+    roe: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
+    liq_distance_pct: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
+    risk_budget_usage_pct: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
+    source_event_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("derivative_position_events.id")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

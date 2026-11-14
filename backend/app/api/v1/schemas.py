@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
@@ -108,3 +109,48 @@ class StreamCreate(BaseModel):
     timezone: str = Field(default="Asia/Shanghai", min_length=1, max_length=64)
     monitor_interval_minutes: int = Field(default=60, ge=15, le=1440)
     agent_enabled: bool = True
+
+
+class SpotEventCreate(BaseModel):
+    kind: Literal["BUY", "SELL", "OPENING", "CORRECTION"]
+    quantity: Decimal = Field(ge=0)
+    price: Decimal | None = None
+    avg_cost: Decimal | None = None
+    fee: Decimal = Field(default=Decimal("0"), ge=0)
+    occurred_at: datetime
+    note: str | None = Field(default=None, max_length=500)
+
+
+class DerivativeEventCreate(BaseModel):
+    kind: Literal["OPEN", "INCREASE", "REDUCE", "CLOSE", "ADJUST_MARGIN", "FUNDING", "CORRECTION"]
+    side: Literal["LONG", "SHORT"] | None = None
+    quantity_base: Decimal | None = Field(default=None, ge=0)
+    price: Decimal | None = Field(default=None, gt=0)
+    leverage: Decimal | None = Field(default=None, gt=0, le=125)
+    margin_mode: Literal["ISOLATED", "CROSS"] = "ISOLATED"
+    margin: Decimal | None = Field(default=None, ge=0)
+    liquidation_price: Decimal | None = Field(default=None, gt=0)
+    fee: Decimal = Field(default=Decimal("0"), ge=0)
+    margin_delta: Decimal | None = None
+    funding_amount: Decimal | None = None
+    occurred_at: datetime
+    note: str | None = Field(default=None, max_length=500)
+
+
+class SpotSimulate(BaseModel):
+    side: Literal["BUY", "SELL"]
+    quantity: Decimal = Field(gt=0)
+    assumed_price: Decimal = Field(gt=0)
+
+
+class DerivativeSimulate(BaseModel):
+    action: Literal[
+        "REDUCE_LONG",
+        "REDUCE_SHORT",
+        "CLOSE_LONG",
+        "CLOSE_SHORT",
+        "INCREASE_LONG",
+        "INCREASE_SHORT",
+    ]
+    size_change_pct: Decimal = Field(default=Decimal("25"), ge=0, le=100)
+    assumed_mark: Decimal = Field(gt=0)
