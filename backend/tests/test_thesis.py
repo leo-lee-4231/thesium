@@ -134,10 +134,18 @@ async def test_parse_limits_clarifying_questions() -> None:
             {
                 "draft": {"thesis_statement": "test"},
                 "unparsed": [],
-                "clarifying_questions": [f"question {index}" for index in range(6)],
+                "clarifying_questions": [
+                    "短期具体到哪一天结束？",
+                    "未来会涨还是会跌？",
+                    "58000 是支撑还是目标？",
+                    "question 4",
+                    "question 5",
+                    "question 6",
+                ],
                 "warnings": [],
             }
         )
     )
     result = await ai.parse("test")
+    assert result["clarifying_questions"][0] == "58000 是支撑还是目标？"
     assert len(result["clarifying_questions"]) == 3

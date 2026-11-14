@@ -40,6 +40,7 @@ scenario.direction 用 UP/DOWN/RANGE；scenario.time_horizon 用 SHORT_TERM/MEDI
 
 _NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
 _DIRECTION_WORDS = {"看涨", "看跌", "中性", "做多", "做空", "加仓", "减仓", "清仓", "持有"}
+_NOISE_QUESTION = re.compile(r"哪一天|哪日|具体日期|多少周|几周|未来|预测|会涨|会跌|价格会")
 
 
 def _numbers(text: str) -> set[str]:
@@ -89,7 +90,11 @@ class ThesisAI:
         questions = result.get("clarifying_questions") or []
         if not isinstance(questions, list):
             questions = []
-        cleaned_questions = [str(question).strip() for question in questions if str(question).strip()]
+        cleaned_questions = [
+            str(question).strip()
+            for question in questions
+            if str(question).strip() and not _NOISE_QUESTION.search(str(question))
+        ]
         return {
             "draft": normalized_content(content),
             "unparsed": result.get("unparsed") or [],
