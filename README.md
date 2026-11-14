@@ -83,7 +83,27 @@ make up
 
 OKX 在当前网络需要代理时，启动 API 前设置 `HTTPS_PROXY`（例如 `HTTPS_PROXY=http://127.0.0.1:7897 make dev-api`）。
 
-AI 润色/整理需要 OpenAI 兼容模型：设置 `THESIUM_LLM_BASE_URL` / `THESIUM_LLM_MODEL` / `THESIUM_LLM_API_KEY` 后重启 API；未配置时手动编辑不受影响，AI 按钮会返回明确错误。
+AI 润色/整理需要 OpenAI 兼容模型。配置位置（任选其一）：
+
+1. 根目录 `.env`（推荐，已被 gitignore）：
+
+```bash
+THESIUM_LLM_BASE_URL=https://api.deepseek.com/v1
+THESIUM_LLM_MODEL=deepseek-chat
+THESIUM_LLM_API_KEY=sk-...
+```
+
+2. Shell 环境变量：启动 API 前 `export`，或 `THESIUM_LLM_MODEL=... make dev-api`。
+3. Docker：同样写根目录 `.env`，Compose 会传给 api/worker。
+
+改完需要重启 API（配置有缓存）。验证：
+
+```bash
+curl http://127.0.0.1:8000/api/v1/settings/llm
+# {"configured":true,"base_url":"...","model":"...","has_api_key":true}
+```
+
+未配置时手动编辑不受影响，AI 按钮会返回明确错误。
 
 > Docker Hub 不可达时，在 `.env` 里把 `PYTHON_IMAGE` / `NODE_IMAGE` / `NGINX_IMAGE` / `POSTGRES_IMAGE` 指到可用镜像（示例见 `.env.example`），无需改 Dockerfile。
 
