@@ -206,6 +206,24 @@ export interface DerivativeEvent {
   note: string | null
 }
 
+export interface LLMStatus {
+  configured: boolean
+  source: 'database' | 'environment' | 'none'
+  base_url: string
+  model: string
+  has_api_key: boolean
+  api_key_hint: string | null
+  status: string
+  last_tested_at: string | null
+}
+
+export interface LLMConfigUpdate {
+  base_url: string
+  model: string
+  api_key?: string
+  clear_api_key?: boolean
+}
+
 export interface ThesisDiffItem {
   op: string
   path: string
@@ -290,6 +308,16 @@ export const api = {
   meta: () => request<Meta>('/api/v1/meta'),
   assets: () => request<Asset[]>('/api/v1/assets'),
   streams: () => request<Stream[]>('/api/v1/streams'),
+  llmStatus: () => request<LLMStatus>('/api/v1/settings/llm'),
+  saveLlmConfig: (payload: LLMConfigUpdate) =>
+    request<LLMStatus>('/api/v1/settings/llm', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  testLlm: () => request<{ ok: boolean; latency_ms?: number; error?: string; message?: string }>(
+    '/api/v1/settings/llm/test',
+    { method: 'POST' },
+  ),
   thesis: (streamId: string) => request<ThesisVersion | null>(`/api/v1/streams/${streamId}/thesis`),
   thesisVersions: (streamId: string) =>
     request<ThesisVersion[]>(`/api/v1/streams/${streamId}/thesis/versions`),

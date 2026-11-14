@@ -79,31 +79,19 @@ make up
 # http://127.0.0.1:8080
 ```
 
-当前已接通 OKX 现货 + SWAP 行情、K 线与指标；产品详情页在 http://127.0.0.1:5173/products/btc。持仓、Thesis、分析与对话在 P2–P5 逐步加入。
+当前已接通 OKX 现货 + SWAP 行情、产品创建、现货/永续持仓、Thesis 编辑器；产品详情在 http://127.0.0.1:5173/products/btc。下一步 P4：Agent Runtime 与定时分析。
 
 OKX 在当前网络需要代理时，启动 API 前设置 `HTTPS_PROXY`（例如 `HTTPS_PROXY=http://127.0.0.1:7897 make dev-api`）。
 
-AI 润色/整理需要 OpenAI 兼容模型。配置位置（任选其一）：
+AI 润色/整理需要 OpenAI 兼容模型。打开 http://127.0.0.1:5173/settings 配置：
 
-1. 根目录 `.env`（推荐，已被 gitignore）：
+- Base URL（如 `https://api.deepseek.com/v1`）
+- Model（如 `deepseek-chat`）
+- API Key
 
-```bash
-THESIUM_LLM_BASE_URL=https://api.deepseek.com/v1
-THESIUM_LLM_MODEL=deepseek-chat
-THESIUM_LLM_API_KEY=sk-...
-```
+配置保存到 PostgreSQL，API Key 加密存储、前端只显示末 4 位；支持「测试连接」。保存后立即生效，无需重启 API。
 
-2. Shell 环境变量：启动 API 前 `export`，或 `THESIUM_LLM_MODEL=... make dev-api`。
-3. Docker：同样写根目录 `.env`，Compose 会传给 api/worker。
-
-改完需要重启 API（配置有缓存）。验证：
-
-```bash
-curl http://127.0.0.1:8000/api/v1/settings/llm
-# {"configured":true,"base_url":"...","model":"...","has_api_key":true}
-```
-
-未配置时手动编辑不受影响，AI 按钮会返回明确错误。
+环境变量 `THESIUM_LLM_BASE_URL/MODEL/API_KEY` 仍可作为数据库未配置时的回退；`GET /api/v1/settings/llm` 可查看当前来源与状态。未配置时手动编辑 Thesis 不受影响，AI 按钮会提示去 Settings。
 
 > Docker Hub 不可达时，在 `.env` 里把 `PYTHON_IMAGE` / `NODE_IMAGE` / `NGINX_IMAGE` / `POSTGRES_IMAGE` 指到可用镜像（示例见 `.env.example`），无需改 Dockerfile。
 

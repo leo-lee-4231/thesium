@@ -8,11 +8,12 @@ from app.api.v1.schemas import (
     ThesisTextRequest,
     ThesisVersionCreate,
 )
+from app.application.llm_provider_service import LLMProviderError, LLMProviderService
 from app.application.thesis_ai import ThesisAI
 from app.application.thesis_service import ThesisError, ThesisService
 from app.db.models import InvestmentThesis
 from app.db.session import get_session
-from app.infrastructure.llm.client import LLMError, LLMNotConfigured
+from app.infrastructure.llm.client import LLMClient, LLMError, LLMNotConfigured
 
 router = APIRouter(tags=["thesis"])
 
@@ -47,7 +48,16 @@ def _error(exc: ThesisError) -> HTTPException:
     return HTTPException(status_code=status, detail=f"{exc.code}: {exc.message}")
 
 
+async def _ai(session: AsyncSession) -> ThesisAI:
+    config = await LLMProviderService(session).config()
+    if config is None:
+        raise LLMNotConfigured("LLM provider is not configured")
+    return ThesisAI(LLMClient(config))
+
+
 def _ai_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, LLMProviderError):
+        return HTTPException(status_code=409, detail=f"{exc.code}: {exc.message}")
     if isinstance(exc, LLMNotConfigured):
         return HTTPException(
             status_code=503,
@@ -163,10 +173,10 @@ async def parse_thesis(
 ) -> dict[str, object]:
     try:
         await ThesisService(session).ensure_stream(stream_id)
-        result = await ThesisAI().parse(payload.text)
+        result = await (await _ai(session)).parse(payload.text)
     except ThesisError as exc:
         raise _error(exc) from exc
-    except (LLMNotConfigured, LLMError) as exc:
+    except (LLMProviderError, LLMNotConfigured, LLMError) as exc:
         raise _ai_error(exc) from exc
     return result
 
@@ -179,9 +189,9 @@ async def polish_thesis(
 ) -> dict[str, object]:
     try:
         await ThesisService(session).ensure_stream(stream_id)
-        result = await ThesisAI().polish(payload.text)
+        result = await (await _ai(session)).polish(payload.text)
     except ThesisError as exc:
         raise _error(exc) from exc
-    except (LLMNotConfigured, LLMError) as exc:
+    except (LLMProviderError, LLMNotConfigured, LLMError) as exc:
         raise _ai_error(exc) from exc
     return result

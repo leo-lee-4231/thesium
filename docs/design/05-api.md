@@ -133,38 +133,47 @@ POST /api/v1/settings/email/test
 
 ### 5.3 LLM Provider
 
+v1 单租户只维护一个默认 Provider，通过设置接口读写；API Key 加密存储，只返回末 4 位。
+
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/llm-providers` | 列表（Key 只返回 hint） |
-| POST | `/llm-providers` | 创建 |
-| PATCH | `/llm-providers/{id}` | 更新；Key 为空表示不变 |
-| DELETE | `/llm-providers/{id}` | 删除（至少保留一个才能分析） |
-| POST | `/llm-providers/{id}/test` | 连接 + 工具调用测试 |
+| GET | `/settings/llm` | 当前配置与状态（不回显 Key） |
+| PUT | `/settings/llm` | 保存 Base URL / Model / API Key；Key 留空表示不变 |
+| POST | `/settings/llm/test` | 连接测试，更新 status/last_tested_at |
 
-创建请求：
+保存请求：
 
 ```json
 {
-  "name": "DeepSeek",
   "base_url": "https://api.deepseek.com/v1",
-  "api_key": "sk-...",
   "model": "deepseek-chat",
-  "extra": {}
+  "api_key": "sk-...",
+  "clear_api_key": false
+}
+```
+
+状态响应：
+
+```json
+{
+  "configured": true,
+  "source": "database",
+  "base_url": "https://api.deepseek.com/v1",
+  "model": "deepseek-chat",
+  "has_api_key": true,
+  "api_key_hint": "…1234",
+  "status": "OK",
+  "last_tested_at": "2026-11-15T02:30:00Z"
 }
 ```
 
 测试响应：
 
 ```json
-{
-  "ok": false,
-  "error": "TOOLS_UNSUPPORTED",
-  "message": "当前模型未通过工具调用测试；v1 需要支持 tools 的 Provider。",
-  "latency_ms": 820
-}
+{"ok": true, "latency_ms": 820, "status_code": 200}
 ```
 
-错误码：`OK` / `AUTH_ERROR` / `MODEL_NOT_FOUND` / `TOOLS_UNSUPPORTED` / `TIMEOUT` / `UPSTREAM_ERROR`。
+错误码：`LLM_NOT_CONFIGURED` / `LLM_TIMEOUT` / `LLM_UPSTREAM_ERROR` / `LLM_BAD_RESPONSE` / `SECRET_ERROR`。
 
 ---
 

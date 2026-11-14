@@ -172,3 +172,10 @@ class ThesisTextRequest(BaseModel):
 
 class ThesisRejectRequest(BaseModel):
     reason: str | None = Field(default=None, max_length=500)
+
+
+class LLMConfigUpdate(BaseModel):
+    base_url: str = Field(min_length=1, max_length=500)
+    model: str = Field(min_length=1, max_length=200)
+    api_key: str | None = Field(default=None, max_length=500)
+    clear_api_key: bool = False

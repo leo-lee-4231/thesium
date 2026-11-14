@@ -36,6 +36,7 @@ const pending = computed(
   () => versions.value.find((version) => version.status === 'PENDING_CONFIRMATION') ?? null,
 )
 const currentVersion = computed(() => pending.value ?? active.value)
+const llmMissing = computed(() => (error.value ?? '').includes('LLM_NOT_CONFIGURED'))
 
 function applyVersion(version: ThesisVersion | null): void {
   if (!version) return
@@ -226,7 +227,10 @@ onMounted(() => {
   </div>
 
   <p v-if="loading" class="muted">加载 Thesis…</p>
-  <p v-if="error" class="error">{{ error }}</p>
+  <p v-if="error" class="error">
+    {{ error }}
+    <RouterLink v-if="llmMissing" class="inline-link" to="/settings">去 Settings 配置 LLM</RouterLink>
+  </p>
   <p v-if="notice" class="notice">{{ notice }}</p>
 
   <template v-if="stream && !loading">

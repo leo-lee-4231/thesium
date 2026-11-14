@@ -224,3 +224,5 @@ node_modules/
 .npm-cache/
 frontend/.npm-cache/
 backups/
+
+.thesium-secret

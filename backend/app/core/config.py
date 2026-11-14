@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     llm_base_url: str | None = None
     llm_api_key: str | None = None
     llm_model: str | None = None
+    secret_key_file: str = ".thesium-secret"
     admin_token: str | None = None
     secret_key: str | None = None
 
