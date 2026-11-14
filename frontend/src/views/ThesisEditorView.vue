@@ -235,6 +235,24 @@ onMounted(() => {
   <p v-if="notice" class="notice">{{ notice }}</p>
 
   <template v-if="stream && !loading">
+    <div class="thesis-explainer">
+      <div>
+        <strong>原文 / 确认正文</strong>
+        <p>
+          你的完整表达，保留语境、条件、犹豫和细节。后续 Agent 读取的是「确认正文」；
+          原文作为审计留底，不直接被覆盖。
+        </p>
+      </div>
+      <div>
+        <strong>结构化字段</strong>
+        <p>
+          给程序和模型看的可计算摘要：方向、周期、目标价、风险预算、杠杆约束等。
+          它用于 Thesis 对齐、风险/杠杆硬约束和 MATERIAL/MINOR 分类，不替代你的原文。
+          留空也能保存，但 Agent 只能主要依赖文字，校验能力会变弱。
+        </p>
+      </div>
+    </div>
+
     <div class="thesis-grid">
       <section class="thesis-column">
         <div class="thesis-head">
@@ -284,7 +302,7 @@ onMounted(() => {
         </div>
 
         <label class="form-field">
-          <span>JSON（可手改；AI 整理会回填）</span>
+          <span>JSON（可手改；AI 整理会回填；留空也可保存）</span>
           <textarea v-model="structuredText" rows="18" spellcheck="false" />
         </label>
 

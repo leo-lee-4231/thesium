@@ -120,6 +120,26 @@ Investment Thesis 统一承载用户对某个资产的目标、观点与约束�
 - `scenarios[].time_horizon`：`SHORT_TERM` / `MEDIUM_TERM` / `LONG_TERM`
 - `scenarios[].status`：`USER_EXPECTATION` / `CONDITIONAL`
 
+### 2.4 原文、确认正文与结构化字段的关系
+
+| 字段 | 是什么 | 谁读它 | 作用 |
+|---|---|---|---|
+| `original_text` | 用户原始输入，逐版本留底 | 审计 / 历史对比 | 保留用户原话，不被覆盖 |
+| `final_text` | 用户确认后的正文（可润色/编辑） | Agent 分析、对话 | 提供完整语义、语境、条件与细节 |
+| `structured_content` | 对原文的可计算摘要 | 程序校验、Agent 分析 | 方向/周期/目标价/风险/杠杆等硬约束，以及 MATERIAL/MINOR 分类 |
+
+原则：
+
+- **两者都进入上下文**：P4 的监控分析会同时读取 `final_text` 与 `structured_content`；
+  前者解释「为什么」，后者提供可计算、可校验的约束。
+- **冲突时不能静默取一个**：若文字说看涨、结构化写 BEARISH，Agent 应标记冲突并要求 `REVIEW`，
+  而不是自行选择。P4 会在 Prompt 与 Validator 里落实。
+- **结构化字段不替代原文**：它是有损摘要；原文中的条件、例外和语气不能被丢掉。
+- **允许留空**：观察型或纯文字 Thesis 可以只有 `final_text`，但 Agent 无法做严格的
+  方向/风险/杠杆约束校验。
+- **分类只看结构化 diff**：当前 `MATERIAL/MINOR` 由 `structured_content` 的变化决定；
+  如果只改文字、不改 JSON，可能被归为 MINOR。改变观点时应同时更新 JSON，或重新执行 AI 整理。
+
 ### 2.3 设计约束
 
 - **不发明数字**：用户没说目标价，`target_price` 就是 `null`；用户没说风险预算，`risk` 字段留空。
