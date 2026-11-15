@@ -7,6 +7,9 @@ import BackButton from '@/components/BackButton.vue'
 const status = ref<OpsStatus | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
+const digestRunning = ref(false)
+const digestMessage = ref<string | null>(null)
+const digestError = ref<string | null>(null)
 
 const stream = computed(() => status.value?.stream ?? null)
 const digest = computed(() => status.value?.daily_digest ?? null)
@@ -43,6 +46,25 @@ async function load(): Promise<void> {
     error.value = caught instanceof Error ? caught.message : '系统状态加载失败'
   } finally {
     loading.value = false
+  }
+}
+
+async function runDigest(): Promise<void> {
+  if (!stream.value || digestRunning.value) return
+  if (!window.confirm('将立即跑一次分析并发送日报，可能需要 30–60 秒。继续？')) return
+  digestRunning.value = true
+  digestMessage.value = null
+  digestError.value = null
+  try {
+    const result = await api.runDigest(stream.value.id)
+    digestMessage.value = result.already_sent
+      ? `今天已经发送过（${result.local_date}），未重复发送。`
+      : `日报 ${result.status} · ${result.subject}`
+    await load()
+  } catch (caught) {
+    digestError.value = caught instanceof Error ? caught.message : '日报发送失败'
+  } finally {
+    digestRunning.value = false
   }
 }
 
@@ -178,14 +200,34 @@ onMounted(() => {
             <p class="eyebrow">Daily digest</p>
             <h2>每日 08:00 日报</h2>
           </div>
-          <span class="ops-status" :class="digest?.enabled ? 'ok' : 'warn'">
-            {{ digest?.enabled ? `开启 · ${digest.time}` : '未开启' }}
-          </span>
+          <div class="digest-actions">
+            <span class="ops-status" :class="digest?.enabled ? 'ok' : 'warn'">
+              {{ digest?.enabled ? `开启 · ${digest.time}` : '未开启' }}
+            </span>
+            <button
+              class="primary-button small"
+              type="button"
+              :disabled="digestRunning || !status.config.email_configured"
+              :title="
+                status.config.email_configured
+                  ? '立即生成并发送今天的日报'
+                  : '请先在 Settings 配置 SMTP'
+              "
+              @click="runDigest"
+            >
+              {{ digestRunning ? '生成并发送中…' : '立即发送日报' }}
+            </button>
+          </div>
         </div>
         <p v-if="!digest?.enabled" class="muted">
           日报未开启。去 Settings → 通知偏好打开「每日日报」。
         </p>
-        <template v-else>
+        <p v-if="!status.config.email_configured" class="error-hint">
+          尚未配置 SMTP。请先到 Settings → 邮件通知保存并测试，再手动发送日报。
+        </p>
+        <p v-if="digestMessage" class="notice">{{ digestMessage }}</p>
+        <p v-if="digestError" class="error">{{ digestError }}</p>
+        <template v-if="digest">
           <div class="ops-row">
             <span>新闻</span>
             <strong>{{ digest.news_enabled ? '包含标题/链接' : '关闭' }}</strong>

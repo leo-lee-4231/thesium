@@ -680,6 +680,18 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(payload),
     }),
+  runDigest: (streamId?: string) =>
+    request<{
+      id: string
+      local_date: string
+      status: string
+      subject: string
+      sent_at: string | null
+      error: string | null
+      already_sent: boolean
+    }>(`/api/v1/ops/digest/run${streamId ? `?stream_id=${streamId}` : ''}`, {
+      method: 'POST',
+    }),
   opsStatus: (streamId?: string) =>
     request<OpsStatus>(`/api/v1/ops/status${streamId ? `?stream_id=${streamId}` : ''}`),
   notifications: (streamId?: string, limit = 30) =>

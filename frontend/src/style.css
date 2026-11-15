@@ -2363,3 +2363,276 @@ a {
     overflow-x: auto;
   }
 }
+
+.digest-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.digest-actions .primary-button {
+  margin: 0;
+}
+
+/* Mobile refinements */
+@media (max-width: 640px) {
+  .topbar {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+
+  .brand-mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+
+  .brand-text small {
+    display: none;
+  }
+
+  .nav {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 14px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .phase-pill {
+    display: none;
+  }
+
+  .main {
+    padding: 28px 14px 48px;
+  }
+
+  .footer {
+    padding: 18px 14px 24px;
+  }
+
+  .hero {
+    margin-bottom: 30px;
+  }
+
+  .hero h1 {
+    font-size: clamp(32px, 10vw, 40px);
+  }
+
+  .lede {
+    font-size: 14px;
+  }
+
+  .product-hero {
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .product-title {
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .product-symbol.large {
+    min-width: 52px;
+    height: 52px;
+    font-size: 16px;
+  }
+
+  .product-title h1 {
+    font-size: 24px;
+  }
+
+  .product-hero .quote-block,
+  .product-hero > .status-pill {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .tabs {
+    margin: 20px 0 14px;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .tab {
+    flex: 0 0 auto;
+    padding: 9px 10px;
+    font-size: 12px;
+  }
+
+  .market-panel,
+  .position-panel,
+  .decision-panel,
+  .notification-panel,
+  .form-card,
+  .panel,
+  .ops-card {
+    padding: 16px;
+  }
+
+  .market-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .market-head h2 {
+    font-size: 20px;
+  }
+
+  .timeframe-switch {
+    width: 100%;
+  }
+
+  .tf-button {
+    flex: 1;
+  }
+
+  .quote-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .indicator-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .decision-head {
+    gap: 7px;
+  }
+
+  .decision-time {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .decision-meta,
+  .evidence-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .position-grid,
+  .thesis-grid,
+  .split-grid,
+  .live-grid,
+  .ops-grid,
+  .settings-status {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-status {
+    gap: 8px;
+  }
+
+  .settings-card-head {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .form-actions {
+    justify-content: stretch;
+  }
+
+  .form-actions .primary-button,
+  .form-actions .ghost-button {
+    flex: 1;
+  }
+
+  .chat-layout {
+    display: block;
+  }
+
+  .chat-main {
+    min-height: 0;
+  }
+
+  .chat-messages {
+    max-height: 56vh;
+    padding: 14px;
+  }
+
+  .chat-message {
+    max-width: 100%;
+  }
+
+  .chat-composer {
+    padding: 12px;
+  }
+
+  .quick-prompts {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .quick-prompt {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .composer-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .composer-row .primary-button,
+  .composer-row .ghost-button {
+    align-self: flex-end;
+  }
+
+  .ops-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .live-links {
+    width: 100%;
+  }
+
+  .live-links .ghost-button {
+    flex: 1;
+    text-align: center;
+  }
+
+  .digest-actions {
+    align-items: stretch;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .digest-actions .primary-button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .chat-sidebar {
+    display: block;
+    margin-bottom: 10px;
+    padding: 12px;
+  }
+
+  .chat-sidebar ul {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .chat-sidebar li {
+    flex: 0 0 auto;
+  }
+
+  .conversation-button {
+    min-width: 170px;
+  }
+
+  .chat-sidebar-note {
+    display: none;
+  }
+}
