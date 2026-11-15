@@ -225,6 +225,7 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 | [06 · 路线图](docs/design/06-roadmap.md) | P0–P7、测试、风险与验收 |
 | [07 · 对话与多渠道](docs/design/07-conversation-and-channels.md) | 对话域、飞书接入、安全、语气 |
 | [Tailscale 部署](deploy/TAILSCALE.md) | 无域名、无公网端口，通过私有网络用手机访问 NAS |
+| [阿里云部署手册](deploy/ALIYUN.md) | Ubuntu 24.04 + Docker + Clash + Tailscale 完整步骤 |
 
 ## 状态
 
