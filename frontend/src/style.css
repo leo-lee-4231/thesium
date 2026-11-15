@@ -2636,3 +2636,29 @@ a {
     display: none;
   }
 }
+
+@media (max-width: 640px) {
+  .ops-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ops-card {
+    min-width: 0;
+  }
+
+  .ops-table {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .ops-table th,
+  .ops-table td {
+    white-space: nowrap;
+  }
+
+  .history-list li,
+  .diff-list li {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+}
