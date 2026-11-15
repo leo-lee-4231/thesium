@@ -268,6 +268,8 @@
 规则：
 
 - `risk_plan` 不是分析前提：没有永续持仓时为空是正常的；Agent 仍可分析趋势/论点，只是不能给出带具体止损的开仓建议。
+- **开/加仓必须带止损**：`OPEN_LONG` / `OPEN_SHORT` / `INCREASE_LONG` / `INCREASE_SHORT` 四个动作都要求 `stop_loss`；
+  `REDUCE_*` / `CLOSE_*` / `ADJUST_MARGIN` / `HOLD` 不强制。空单止损在开仓价上方，多单止损在下方。
 - **用户硬止损优先**：Thesis 里 `short_stop_loss_price` / `long_stop_loss_price` 有值且方向正确时，采用 `source=USER`。
 - **没有硬止损才推导**：程序用 `account_equity_usd`、`max_drawdown_pct`、`max_risk_per_trade_pct`（或最大回撤/并行笔数）、仓位数量、清算价计算，`source=DERIVED`。
 - **模型不得心算止损**：数值必须来自 `derive_stop_loss` 工具；模型只解释。

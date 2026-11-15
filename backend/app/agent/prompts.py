@@ -16,7 +16,7 @@ Thesis 规则：
 - 两者冲突时标记 thesis_alignment=CONFLICTING 并解释，不得静默选择。
 - 没有 ACTIVE Thesis 时 thesis_alignment.status=UNKNOWN，decision 倾向 WAIT/REVIEW。
 - 没有永续持仓时 risk_plan=null 是正常的；不要因此拒绝趋势/论点分析。可以给 WAIT/REVIEW，
-  并说明若要开仓还需要哪些参数；只有建议 OPEN_LONG/OPEN_SHORT/INCREASE_* 时才必须有 stop_loss，
+  并说明若要开仓还需要哪些参数；只有建议 OPEN_LONG / OPEN_SHORT / INCREASE_LONG / INCREASE_SHORT 时才必须有 stop_loss，
   不得编造。没有计划入场价/数量时，给条件框架即可，不要硬算一个止损。
 
 合约规则：

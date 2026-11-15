@@ -153,6 +153,8 @@ def validate_decision(
             action in {"OPEN_LONG", "OPEN_SHORT", "INCREASE_LONG", "INCREASE_SHORT"}
             and recommendation.stop_loss is None
         ):
-            errors.append("stop_loss is required for open/increase actions")
+            errors.append(
+                "stop_loss is required for OPEN_LONG/OPEN_SHORT/INCREASE_LONG/INCREASE_SHORT"
+            )
 
     return errors

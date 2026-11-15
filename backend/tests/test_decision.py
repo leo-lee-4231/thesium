@@ -61,3 +61,44 @@ def test_open_requires_stop_loss() -> None:
         output, has_thesis=True, has_derivative=False, derivative_side=None, allow_short=False
     )
     assert any("stop_loss" in error for error in errors)
+
+def test_open_short_requires_stop_loss() -> None:
+    output = base_output(
+        decision="SELL",
+        thesis_alignment={"status": "ALIGNED"},
+        derivative_recommendation={"action": "OPEN_SHORT"},
+    )
+    errors = validate_decision(
+        output, has_thesis=True, has_derivative=False, derivative_side=None, allow_short=True
+    )
+    assert any("OPEN_SHORT" in error for error in errors)
+
+
+def test_open_short_requires_permission() -> None:
+    output = base_output(
+        decision="SELL",
+        thesis_alignment={"status": "ALIGNED"},
+        derivative_recommendation={
+            "action": "OPEN_SHORT",
+            "stop_loss": {"price": "95000", "source": "USER"},
+        },
+    )
+    errors = validate_decision(
+        output, has_thesis=True, has_derivative=False, derivative_side=None, allow_short=False
+    )
+    assert any("allow_short" in error for error in errors)
+
+
+def test_open_short_with_stop_and_permission_is_valid() -> None:
+    output = base_output(
+        decision="SELL",
+        thesis_alignment={"status": "ALIGNED"},
+        derivative_recommendation={
+            "action": "OPEN_SHORT",
+            "stop_loss": {"price": "95000", "source": "USER"},
+        },
+    )
+    errors = validate_decision(
+        output, has_thesis=True, has_derivative=False, derivative_side=None, allow_short=True
+    )
+    assert errors == []
