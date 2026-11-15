@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { api, type Asset, type Instrument, type Stream } from '@/api/client'
+import BackButton from '@/components/BackButton.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -90,7 +91,7 @@ async function submit(): Promise<void> {
 
 <template>
   <section class="product-hero">
-    <RouterLink class="back-link" to="/">← 返回产品列表</RouterLink>
+    <BackButton fallback="/" />
     <div class="product-title">
       <span class="product-symbol large">＋</span>
       <div>

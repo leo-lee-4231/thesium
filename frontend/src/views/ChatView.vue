@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
+import BackButton from '@/components/BackButton.vue'
 import {
   api,
   streamChat,
@@ -179,9 +180,7 @@ onMounted(() => {
 
 <template>
   <section class="product-hero">
-    <RouterLink class="back-link" :to="`/products/${symbol.toLowerCase()}`">
-      ← 返回 {{ symbol }} 概览
-    </RouterLink>
+    <BackButton :fallback="`/products/${symbol.toLowerCase()}`" />
     <div class="product-title">
       <span class="product-symbol large">{{ symbol }}</span>
       <div>

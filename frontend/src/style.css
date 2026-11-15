@@ -2219,3 +2219,14 @@ a {
   font-size: 11px;
   line-height: 1.65;
 }
+
+.back-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+}

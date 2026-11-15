@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 
+import BackButton from '@/components/BackButton.vue'
 import {
   api,
   type EmailStatus,
@@ -284,7 +285,7 @@ onMounted(() => {
 
 <template>
   <section class="product-hero">
-    <RouterLink class="back-link" to="/">← 返回产品列表</RouterLink>
+    <BackButton fallback="/" />
     <div class="product-title">
       <span class="product-symbol large">⚙</span>
       <div>

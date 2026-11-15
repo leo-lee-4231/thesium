@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { api, type Asset, type Candle, type MarketOverview, type Stream } from '@/api/client'
+import BackButton from '@/components/BackButton.vue'
 import DecisionPanel from '@/components/DecisionPanel.vue'
 import NotificationPanel from '@/components/NotificationPanel.vue'
 import PositionPanel from '@/components/PositionPanel.vue'
@@ -120,7 +121,7 @@ onMounted(() => {
 
 <template>
   <section class="product-hero">
-    <RouterLink class="back-link" to="/">← 返回产品列表</RouterLink>
+    <BackButton fallback="/" />
 
     <div class="product-title">
       <span class="product-symbol large">{{ asset?.symbol ?? '—' }}</span>

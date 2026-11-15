@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
+import BackButton from '@/components/BackButton.vue'
 import {
   api,
   type Asset,
@@ -205,7 +206,7 @@ onMounted(() => {
 
 <template>
   <section class="product-hero">
-    <RouterLink class="back-link" :to="`/products/${symbol.toLowerCase()}`">← 返回产品</RouterLink>
+    <BackButton :fallback="`/products/${symbol.toLowerCase()}`" />
     <div class="product-title">
       <span class="product-symbol large">{{ asset?.symbol ?? '—' }}</span>
       <div>

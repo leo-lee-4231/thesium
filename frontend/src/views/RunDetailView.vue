@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { api, type AgentRun } from '@/api/client'
+import BackButton from '@/components/BackButton.vue'
 
 const route = useRoute()
 const run = ref<AgentRun | null>(null)
@@ -58,9 +59,7 @@ onMounted(() => {
 
 <template>
   <section class="product-hero">
-    <RouterLink v-if="streamInfo.symbol" class="back-link" :to="backTo">
-      ← 返回 {{ streamInfo.symbol }} {{ run?.task_type === 'CHAT' ? '对话' : '概览' }}
-    </RouterLink>
+    <BackButton :fallback="backTo" />
     <div class="product-title">
       <span class="product-symbol large">R</span>
       <div>
