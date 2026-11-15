@@ -128,7 +128,7 @@ curl -x http://127.0.0.1:7897 -sS -m 10 -o /dev/null \
   'https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT'
 ```
 
-当前网络下 OKX 直连会超时；必须走代理。代理短暂抖动时，API 会重试 3 次，仍失败就返回 `MARKET_UNAVAILABLE`，恢复后点「立即分析」重试即可。
+当前网络下 OKX 直连会被阻断：本地 DNS 可能把 `www.okx.com` 解析成 `169.254.0.2`，即使手动指定真实 Cloudflare IP（如 `104.18.43.174`），TLS ClientHello 也会被 reset。因此必须走代理；这不是 OKX 单方面宕机。代理短暂抖动时，API 会重试 3 次，仍失败就返回 `MARKET_UNAVAILABLE`，恢复后点「立即分析」重试即可。
 
 如果 HTTP 代理到 OKX 不稳定，可以让行情单独走 SOCKS5，并把 DNS 交给代理。
 
