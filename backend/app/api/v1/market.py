@@ -201,3 +201,42 @@ async def get_market_overview(
         derivatives=_derivatives_out(derivatives) if derivatives is not None else None,
         warnings=overview["warnings"],  # type: ignore[arg-type]
     )
+
+@router.get("/okx-check")
+async def okx_check(symbol: str) -> dict[str, object]:
+    """Small connectivity probe for the public OKX API.
+
+    Useful when the UI reports MARKET_UNAVAILABLE: it separates a broken local
+    proxy from a broader market-service failure.
+    """
+
+    import time
+
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    provider = OKXProvider(proxy=settings.market_proxy)
+    instrument = symbol.upper()
+    if "-" not in instrument:
+        instrument = f"{instrument}-USDT"
+    started = time.monotonic()
+    try:
+        quote = await provider.get_quote(instrument)
+    except Exception as exc:  # noqa: BLE001 - diagnostics endpoint
+        return {
+            "ok": False,
+            "latency_ms": int((time.monotonic() - started) * 1000),
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+            "market_proxy_configured": bool(settings.market_proxy),
+        }
+    finally:
+        await provider.close()
+    return {
+        "ok": True,
+        "latency_ms": int((time.monotonic() - started) * 1000),
+        "price": str(quote.price),
+        "market_time": quote.market_time,
+        "staleness": quote.staleness,
+        "market_proxy_configured": bool(settings.market_proxy),
+    }

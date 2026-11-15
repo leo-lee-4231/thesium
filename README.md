@@ -130,6 +130,24 @@ curl -x http://127.0.0.1:7897 -sS -m 10 -o /dev/null \
 
 当前网络下 OKX 直连会超时；必须走代理。代理短暂抖动时，API 会重试 3 次，仍失败就返回 `MARKET_UNAVAILABLE`，恢复后点「立即分析」重试即可。
 
+如果 HTTP 代理到 OKX 不稳定，可以让行情单独走 SOCKS5，并把 DNS 交给代理：
+
+```bash
+# backend/.env 或项目根 .env
+THESIUM_MARKET_PROXY=socks5h://127.0.0.1:7897
+```
+
+`httpx[socks]` 已加入依赖；改完 `.env` 后重启 API 和 Worker。LLM 仍使用 `HTTPS_PROXY`，两者互不影响。
+
+连通性自检：
+
+```bash
+# 返回 ok=true / price；失败会给出 error_type
+curl -s 'http://127.0.0.1:8000/api/v1/assets/BTC-USDT/okx-check'
+```
+
+如果 Clash 的当前节点对 OKX 不稳，用 Clash 的节点延迟测试分别测 `https://www.okx.com` 和 `https://www.google.com`；常见情况是 Google 正常、OKX 超时。把 `okx.com` 的分流组切换到通过测试的节点（如香港 A06、日本 A03、台湾 A01），不要只看全局延迟。
+
 AI 润色/整理需要 OpenAI 兼容模型。打开 http://127.0.0.1:5173/settings 配置：
 
 - Base URL（如 `https://api.deepseek.com/v1`）

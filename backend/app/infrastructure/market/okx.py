@@ -60,13 +60,27 @@ class OKXProvider:
         base_url: str = "https://www.okx.com",
         timeout_seconds: float = 10.0,
         client: httpx.AsyncClient | None = None,
+        proxy: str | None = None,
     ) -> None:
-        self._client = client or httpx.AsyncClient(
-            base_url=base_url,
-            timeout=httpx.Timeout(timeout_seconds),
-            headers={"User-Agent": "thesium/0.1"},
-            trust_env=True,
-        )
+        if client is not None:
+            self._client = client
+        elif proxy:
+            # A dedicated proxy for market data; socks5h keeps DNS on the proxy,
+            # which matters where local DNS returns a blocked placeholder IP.
+            self._client = httpx.AsyncClient(
+                base_url=base_url,
+                timeout=httpx.Timeout(timeout_seconds),
+                headers={"User-Agent": "thesium/0.1"},
+                proxy=proxy,
+                trust_env=False,
+            )
+        else:
+            self._client = httpx.AsyncClient(
+                base_url=base_url,
+                timeout=httpx.Timeout(timeout_seconds),
+                headers={"User-Agent": "thesium/0.1"},
+                trust_env=True,
+            )
         self._owns_client = client is None
 
     async def close(self) -> None:
@@ -118,13 +132,11 @@ class OKXProvider:
                 # errors. A dead local proxy commonly shows up as ReadError('').
                 last_error = exc
                 logger.warning(
-                    "OKX request failed",
-                    extra={
-                        "path": path,
-                        "attempt": attempt + 1,
-                        "error_type": type(exc).__name__,
-                        "error": repr(exc),
-                    },
+                    "OKX request failed path=%s attempt=%s error=%s: %r",
+                    path,
+                    attempt + 1,
+                    type(exc).__name__,
+                    exc,
                 )
                 if attempt < _MAX_ATTEMPTS - 1:
                     await asyncio.sleep(0.5 * (2**attempt))
