@@ -107,6 +107,8 @@ class NotificationService:
             "risk_alert_enabled": prefs.risk_alert_enabled,
             "email_enabled": prefs.email_enabled,
             "daily_summary_enabled": bool(row.daily_summary_enabled) if row else False,
+            "daily_summary_time": row.daily_summary_time if row else "08:00",
+            "news_enabled": bool(row.news_enabled) if row else True,
             "quiet_hours_enabled": prefs.quiet_hours_enabled,
             "quiet_hours_start": prefs.quiet_hours_start,
             "quiet_hours_end": prefs.quiet_hours_end,
@@ -122,6 +124,8 @@ class NotificationService:
         risk_alert_enabled: bool,
         email_enabled: bool,
         daily_summary_enabled: bool,
+        daily_summary_time: str,
+        news_enabled: bool,
         quiet_hours_enabled: bool,
         quiet_hours_start: str,
         quiet_hours_end: str,
@@ -129,7 +133,7 @@ class NotificationService:
         cooldown_minutes: int,
         feishu_push_enabled: bool = False,
     ) -> dict[str, object]:
-        for value in (quiet_hours_start, quiet_hours_end):
+        for value in (quiet_hours_start, quiet_hours_end, daily_summary_time):
             try:
                 hour, minute = value.split(":", 1)
                 if not (0 <= int(hour) <= 23 and 0 <= int(minute) <= 59):
@@ -145,6 +149,8 @@ class NotificationService:
         row.risk_alert_enabled = risk_alert_enabled
         row.email_enabled = email_enabled
         row.daily_summary_enabled = daily_summary_enabled
+        row.daily_summary_time = daily_summary_time
+        row.news_enabled = news_enabled
         row.quiet_hours_enabled = quiet_hours_enabled
         row.quiet_hours_start = quiet_hours_start
         row.quiet_hours_end = quiet_hours_end

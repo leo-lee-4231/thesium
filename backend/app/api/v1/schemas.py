@@ -232,6 +232,8 @@ class NotificationPreferencesUpdate(BaseModel):
     risk_alert_enabled: bool = True
     email_enabled: bool = True
     daily_summary_enabled: bool = False
+    daily_summary_time: str = Field(default="08:00", pattern=r"^\d{2}:\d{2}$")
+    news_enabled: bool = True
     quiet_hours_enabled: bool = True
     quiet_hours_start: str = Field(default="23:00", pattern=r"^\d{2}:\d{2}$")
     quiet_hours_end: str = Field(default="08:00", pattern=r"^\d{2}:\d{2}$")

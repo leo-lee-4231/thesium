@@ -453,6 +453,8 @@ export interface NotificationPreferences {
   risk_alert_enabled: boolean
   email_enabled: boolean
   daily_summary_enabled: boolean
+  daily_summary_time: string
+  news_enabled: boolean
   quiet_hours_enabled: boolean
   quiet_hours_start: string
   quiet_hours_end: string
@@ -556,6 +558,71 @@ export interface OkxCheckResult {
   proxy_source?: string
 }
 
+
+export interface OpsRunSummary {
+  id: string
+  task_type: string
+  status: string
+  model: string | null
+  latency_ms: number | null
+  error_code: string | null
+  error_message: string | null
+  started_at: string
+  finished_at: string | null
+}
+
+export interface OpsJobSummary {
+  id: string
+  kind: string
+  status: string
+  attempts: number
+  last_error: string | null
+  scheduled_at: string
+  finished_at: string | null
+}
+
+export interface OpsStatus {
+  scheduler_enabled: boolean
+  stream: {
+    id: string
+    name: string
+    status: string
+    timezone: string
+    agent_enabled: boolean
+    monitor_interval_minutes: number
+    last_monitored_at: string | null
+    next_monitor_at: string | null
+  } | null
+  message?: string
+  runs: {
+    last_24h: Record<string, number>
+    last_7d: Record<string, number>
+    latest: OpsRunSummary | null
+    last_failed: OpsRunSummary | null
+  }
+  jobs: {
+    last_24h: Record<string, number>
+    pending_or_running: number
+    failed_24h: number
+    recent: OpsJobSummary[]
+  }
+  decisions: {
+    last_24h: number
+    last_7d: number
+    latest: { id: string; decision: string; priority: string; summary: string; created_at: string } | null
+  }
+  notifications: { last_7d: Record<string, number> }
+  market: { last_snapshot_at: string | null; price: string | null; staleness: string }
+  daily_digest: {
+    enabled: boolean
+    time: string
+    last: { id: string; local_date: string; status: string; sent_at: string | null; error: string | null } | null
+    news_enabled: boolean
+  }
+  config: { email_configured: boolean; llm_configured: boolean }
+  recent_runs: OpsRunSummary[]
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
@@ -613,6 +680,8 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(payload),
     }),
+  opsStatus: (streamId?: string) =>
+    request<OpsStatus>(`/api/v1/ops/status${streamId ? `?stream_id=${streamId}` : ''}`),
   notifications: (streamId?: string, limit = 30) =>
     request<NotificationItem[]>(
       `/api/v1/notifications?limit=${limit}${streamId ? `&stream_id=${streamId}` : ''}`,

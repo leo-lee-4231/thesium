@@ -573,6 +573,14 @@ onMounted(() => {
         <strong>{{ prefs.email_enabled ? '开' : '关' }}</strong>
       </div>
       <div>
+        <span>每日日报</span>
+        <strong>{{ prefs.daily_summary_enabled ? prefs.daily_summary_time : '关' }}</strong>
+      </div>
+      <div>
+        <span>日报新闻</span>
+        <strong>{{ prefs.news_enabled ? '标题/链接' : '关' }}</strong>
+      </div>
+      <div>
         <span>免打扰</span>
         <strong>{{ prefs.quiet_hours_enabled ? `${prefs.quiet_hours_start}–${prefs.quiet_hours_end}` : '关' }}</strong>
       </div>
@@ -592,8 +600,25 @@ onMounted(() => {
         <span>通过邮件发送（关闭后仍保留 Web 通知中心记录）</span>
       </label>
       <label class="form-field checkbox">
+        <input v-model="prefs.daily_summary_enabled" type="checkbox" />
+        <span>每天发送一次日报（先跑分析，再发邮件）</span>
+      </label>
+      <label class="form-field">
+        <span>日报时间</span>
+        <input v-model="prefs.daily_summary_time" type="time" :disabled="!prefs.daily_summary_enabled" />
+        <small>按产品时区；默认 08:00。每天最多 1 封。</small>
+      </label>
+      <label class="form-field checkbox">
+        <input
+          v-model="prefs.news_enabled"
+          type="checkbox"
+          :disabled="!prefs.daily_summary_enabled"
+        />
+        <span>日报包含新闻标题与链接（不进入 Decision）</span>
+      </label>
+      <label class="form-field checkbox">
         <input v-model="prefs.quiet_hours_enabled" type="checkbox" />
-        <span>启用免打扰时段（URGENT 可绕过）</span>
+        <span>启用免打扰时段（URGENT 可绕过；日报不受影响）</span>
       </label>
       <label class="form-field">
         <span>免打扰开始</span>
@@ -625,6 +650,8 @@ onMounted(() => {
     <p class="form-note">
       普通 WAIT / HOLD 不打扰；HOLD→SELL 等类别跃迁、HIGH/URGENT、论点转 CONFLICTING、
       风险预算突破才会进入通知。模型只建议，最终由程序规则裁决并记录原因。
+      每日日报是独立的一封：08:00 先跑一次分析，即使没有重要变化也会汇报系统健康度；
+      新闻只提供标题/来源/链接，不进入 Agent 上下文或 Decision。
     </p>
   </section>
 </template>

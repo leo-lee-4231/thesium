@@ -368,8 +368,9 @@ dedupe_key = sha256(
 
 - `decision_alert_enabled`（默认 true）
 - `risk_alert_enabled`（默认 true）
-- `daily_summary_enabled`（默认 false）
+- `daily_summary_enabled`（默认 false；开启后每天 `daily_summary_time`，默认 08:00，先分析后发日报，独立于事件通知）
 - `quiet_hours`（默认 23:00–08:00，URGENT 可绕过）
+- `news_enabled`（默认 true；日报只包含新闻标题/链接，不进入 Decision）
 - `email_verified_at`
 - `feishu_push_enabled`（v1.1，默认 true，仅摘要）
 

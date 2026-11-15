@@ -7,6 +7,7 @@ from app.api.v1 import (
     market,
     meta,
     notifications,
+    ops,
     portfolio,
     risk,
     settings,
@@ -26,3 +27,4 @@ api_router.include_router(risk.router)
 api_router.include_router(agent.router)
 api_router.include_router(chat.router)
 api_router.include_router(notifications.router)
+api_router.include_router(ops.router)

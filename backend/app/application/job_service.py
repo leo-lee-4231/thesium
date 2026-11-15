@@ -12,6 +12,7 @@ from app.db.models import Job
 
 MONITOR_ANALYSIS = "MONITOR_ANALYSIS"
 NOTIFICATION_SEND = "NOTIFICATION_SEND"
+DAILY_DIGEST = "DAILY_DIGEST"
 
 
 async def enqueue(

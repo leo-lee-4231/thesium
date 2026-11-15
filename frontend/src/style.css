@@ -2230,3 +2230,136 @@ a {
   font-size: 12px;
   text-align: left;
 }
+
+/* System ops */
+.ops-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.ops-card {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--panel);
+}
+
+.ops-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ops-card h2 {
+  margin: 12px 0 4px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.ops-card .muted {
+  margin: 0 0 10px;
+  font-size: 11px;
+}
+
+.ops-status {
+  padding: 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+.ops-status.ok,
+.ok-text {
+  color: var(--accent);
+}
+
+.ops-status.warn {
+  color: var(--amber);
+}
+
+.ops-status.bad,
+.bad-text {
+  color: var(--danger);
+}
+
+.ops-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.ops-row strong {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  text-align: right;
+}
+
+.ops-summary {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.ops-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 11px;
+}
+
+.ops-table th,
+.ops-table td {
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  text-align: left;
+  vertical-align: top;
+}
+
+.ops-table th {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.ops-table .ok {
+  color: var(--accent);
+}
+
+.ops-table .warn {
+  color: var(--amber);
+}
+
+.ops-table .bad {
+  color: var(--danger);
+}
+
+@media (max-width: 1000px) {
+  .ops-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .ops-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ops-table {
+    display: block;
+    overflow-x: auto;
+  }
+}

@@ -5,7 +5,8 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from app.agent.runtime import AgentError, AgentRuntime
-from app.application.job_service import MONITOR_ANALYSIS, NOTIFICATION_SEND
+from app.application.digest_service import DigestService
+from app.application.job_service import DAILY_DIGEST, MONITOR_ANALYSIS, NOTIFICATION_SEND
 from app.application.market_service import MarketService
 from app.application.notification_service import NotificationService
 from app.db.models import Asset, InvestmentStream, Job
@@ -27,6 +28,8 @@ class JobRunner:
                 retry_at: datetime | None = None
                 if job.kind == MONITOR_ANALYSIS:
                     await self._run_monitor(session, job)
+                elif job.kind == DAILY_DIGEST:
+                    await self._run_daily_digest(session, job)
                 elif job.kind == NOTIFICATION_SEND:
                     retry_at = await self._run_notification(session, job)
                 else:
@@ -71,6 +74,24 @@ class JobRunner:
                 stream=stream,
                 asset=asset,
                 decision=result["decision"],
+            )
+        finally:
+            await provider.close()
+
+    async def _run_daily_digest(self, session, job: Job) -> None:
+        from datetime import date
+
+        payload = job.payload or {}
+        stream_id = payload.get("stream_id")
+        local_date = payload.get("local_date")
+        if not stream_id or not local_date:
+            raise RuntimeError("daily digest job is missing stream_id/local_date")
+        provider = await create_provider(session)
+        try:
+            service = DigestService(session, MarketService(session, provider))
+            await service.ensure_and_send(
+                stream_id=UUID(str(stream_id)),
+                local_date=date.fromisoformat(str(local_date)),
             )
         finally:
             await provider.close()

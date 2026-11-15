@@ -31,7 +31,7 @@ Thesium 的核心不是「AI 自动寻找买卖点」，而是让 AI 持续理�
 |---|---|---|---|
 | D1 | 首版持仓类型 | 现货 + **USDT 本位永续**（多/空）；币本位、交割、期权不做；清算价由用户输入，本地只算风险距离 | Accepted（D21 扩充） |
 | D2 | 行情源 | 原 Binance 公共 API；**已由 D18 改为 OKX 公共 API** | Superseded by D18 |
-| D3 | 新闻 | v1 不实现，只建表预留；避免 Prompt Injection 主入口 | Accepted |
+| D3 | 新闻 | 原 v1 不做；现由 D23 改为「只做标题/链接，不进入 Decision」 | Superseded by D23 |
 | D4 | Thesis 确认粒度 | 分级：MATERIAL 字段变化必须确认；MINOR 文字补充可直接生效 | Accepted |
 | D5 | 通知策略 | 只发重要变化；4h 冷却 + 去重；日报默认关闭 | Accepted |
 | D6 | 用户体系 | 单租户，保留 `user_id` 外键，不做注册登录 | Accepted |
@@ -51,6 +51,7 @@ Thesium 的核心不是「AI 自动寻找买卖点」，而是让 AI 持续理�
 | D20 | 用户界面命名 | 界面用 **Investment Product / 投资产品**；内部保留 `InvestmentStream`；一资产一卡片，卡内再分现货/合约与未来策略 | Accepted |
 | D21 | 合约持仓 | 仅 USDT 本位永续、单向持仓；用户录入数量/开仓价/杠杆/保证金/清算价；本地算 uPnL、ROE、距清算价距离；不估算清算价 | Accepted |
 | D22 | 合约建议 | Decision 增加 `derivative_recommendation`：开多/加多/减多/平多、开空/加空/减空/平空、调保证金；与当前持仓方向校验 | Accepted |
+| D23 | 日报与新闻 | 每日 08:00 先分析后发日报；新闻只做标题/链接，不进 Decision；新增系统状态页 | Accepted |
 
 ---
 
@@ -60,7 +61,7 @@ Thesium 的核心不是「AI 自动寻找买卖点」，而是让 AI 持续理�
 |---|---|
 | D1 | 现货：数量、成本均价、市值、未实现/已实现盈亏、预算占用。USDT 本位永续：方向、数量、开仓价、杠杆、保证金、**用户录入的清算价**；本地计算 uPnL、ROE、距清算价距离。不估算清算价，不做币本位/交割/期权。 |
 | D2 | 行情 Provider 按 Instrument 工作；`provider + symbol + market_type` 唯一；首个 Provider 为 OKX（SPOT + SWAP）。行情必须带 `market_time`、`fetched_at` 和 `staleness`。 |
-| D3 | 只建 `news_articles` / `news_analyses` 空表与接口占位，不抓取、不注入 Prompt。新闻是后续版本的高风险增量。 |
+| D3 | 原为只建空表、不抓取、不注入 Prompt。D23 改为：只抓取标题/链接，供日报与 Web 展示；不进入 Agent 上下文或 Decision。 |
 | D4 | 见 `02-thesis.md`：MATERIAL = 方向、时间周期、目标价/情景、风险约束、仓位意图；MINOR = 补充说明、澄清、关注问题。 |
 | D5 | 程序侧决策通知，不由 LLM 单独决定。冷却、去重、优先级、数据质量检查都在服务层。 |
 | D6 | 首个 Migration seed 一个本地用户；所有业务表保留 `user_id`，未来多租户不需要重写领域模型。 |
@@ -479,3 +480,17 @@ Thesium 的核心不是「AI 自动寻找买卖点」，而是让 AI 持续理�
 ## 7. 一句话结论
 
 **不要让对话变成另一个 Agent。** 让它成为同一 Runtime 的另一种任务、同一份上下文的另一种问法、同一条审计链的另一个入口；而正式事实只能由用户在编辑器/表单里显式提交或确认——v1.0 连 Proposal 都不由对话创建。
+
+
+---
+
+## D23 · 每日日报与新闻标题
+
+**状态：Accepted（2026-11-15）**
+
+- 每天 08:00（Stream 时区）先跑一次监控分析，再发一封日报；即使没有重要变化也发，用于证明系统仍在运行。
+- 日报包含：执行结果/Decision 摘要、行情与指标、现货/永续持仓与风险、系统健康度、新闻标题与链接。
+- 日报独立于事件通知：每天最多 1 封，不受 4 小时冷却与免打扰限制；分析失败也发失败日报。
+- 新闻只做标题、来源、时间与链接，最多 10 条，标注为外部内容；**不进入 Agent Context、不进入 Decision**，避免 Prompt Injection 与不可核验事实。
+- 新闻源：CoinDesk、Cointelegraph、CNBC Finance、CNBC Markets、Yahoo Finance（BTC）公开 RSS；后续可在设置中扩展。
+- 新增 `/system` 页面：调度器、Run、Job、Decision、通知、行情快照、日报状态，用于观测「系统是否在跑」。

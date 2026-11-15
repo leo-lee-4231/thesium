@@ -28,6 +28,9 @@ async def get_meta() -> MetaOut:
             "notifications:email",
             "notifications:policy",
             "settings:network",
+            "daily:digest",
+            "news:headlines",
+            "ops:status",
             "chat:read-only",
         ],
     )

@@ -129,7 +129,7 @@ class AgentRuntime:
         await self._session.commit()
         await self._session.refresh(run)
         await self._session.refresh(decision)
-        return {"run": run, "decision": decision}
+        return {"run": run, "decision": decision, "context": context}
 
     async def _fail_run(self, run: AgentRun, code: str, message: str) -> None:
         run.status = "FAILED"

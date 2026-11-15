@@ -185,6 +185,20 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 - 免打扰、4 小时冷却、每日上限、完全相同结论：落 `SKIPPED` 并记录原因；
 - 邮件失败按 1/5/30 分钟重试 3 次，Web 通知中心可见并可手动重试。
 
+### 每日 08:00 日报与系统状态
+
+在 Settings → 通知偏好打开「每天发送一次日报」，默认时间 `08:00`（产品时区）。到点后：
+
+1. 先跑一次监控分析（最近 15 分钟内已有成功分析则复用）；
+2. 发送一封日报，即使没有重要变化也发；
+3. 分析失败、行情不可达或新闻抓取失败时，日报仍会发送失败/降级说明，不静默。
+
+日报内容：执行结果与 Decision 摘要、行情/指标、现货/永续持仓与风险、系统健康度（过去 24h Run、Job 队列、通知发送/跳过、下次计划）、新闻标题与链接。每天最多 1 封，不占用事件通知的每日上限。
+
+新闻源为公开 RSS：CoinDesk、Cointelegraph、CNBC Finance、CNBC Markets、Yahoo Finance（BTC），最多 10 条，按加密/金融均衡选择；**只做标题/链接，不进入 Agent 上下文或 Decision**。
+
+导航栏新增 **System**（`/system`）：查看调度器状态、上次/下次分析、最近 Run/Job、Decision 数量、通知记录、行情快照、日报状态和 SMTP/LLM 配置状态。
+
 ### 只读对话
 
 产品页顶部「对话」进入 Web 聊天。回答会带来源与时间戳，底部可打开「Run 详情」查看当时的 Thesis 版本、持仓/行情快照与模型。对话没有写工具：
@@ -213,7 +227,7 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 
 ## 状态
 
-**P0–P5 已完成。** 行情、现货/永续持仓、Thesis 版本与 AI 润色、定时分析、Decision、通知策略与邮件、Web 只读对话、Run 回放均已接通。P6 在收尾：首页当前产品概览、通知中心、Run 详情已加；下一步是验收场景、移动端细节和文档。飞书（v1.1）按当前决定暂缓。
+**P0–P6 基本完成。** 行情、现货/永续持仓、Thesis 版本与 AI 润色、定时分析、Decision、通知策略与邮件、Web 只读对话、Run 回放、每日 08:00 日报与 System 状态页均已接通。新闻按 D23 只做标题/链接，不进入 Decision。飞书（v1.1）按当前决定暂缓。
 
 ## 许可证
 
