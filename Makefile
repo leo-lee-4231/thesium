@@ -1,7 +1,9 @@
 SHELL := /bin/bash
 COMPOSE := docker compose -f deploy/docker-compose.yml --env-file .env
+PROXY ?= http://127.0.0.1:7897
+PYTHON ?= python
 
-.PHONY: help env up down logs ps migrate seed backup test lint format typecheck build-web install-web dev-api dev-worker dev-web
+.PHONY: help env up down logs ps migrate seed backup test lint format typecheck build-web install-web dev-postgres dev-api dev-worker dev-web
 
 help:
 	@echo "Thesium development targets"
@@ -15,6 +17,7 @@ help:
 	@echo "  make lint        Run ruff"
 	@echo "  make typecheck   Type-check the frontend"
 	@echo "  make build-web   Production build of the frontend"
+	@echo "  make dev-postgres Start only the local Postgres container"
 	@echo "  make dev-api     Run FastAPI locally (needs Postgres)"
 	@echo "  make dev-worker  Run scheduler + job worker locally"
 	@echo "  make dev-web     Run Vite dev server"
@@ -71,11 +74,17 @@ build-web:
 install-web:
 	cd frontend && npm install
 
+dev-postgres:
+	@test -f .env || cp .env.example .env
+	$(COMPOSE) up -d postgres
+
 dev-api:
-	cd backend && uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+	cd backend && HTTPS_PROXY=$(PROXY) HTTP_PROXY=$(PROXY) NO_PROXY=127.0.0.1,localhost \
+		$(PYTHON) -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
 dev-worker:
-	cd backend && python -m app.workers.main
+	cd backend && HTTPS_PROXY=$(PROXY) HTTP_PROXY=$(PROXY) NO_PROXY=127.0.0.1,localhost \
+		$(PYTHON) -m app.workers.main
 
 dev-web:
 	cd frontend && npm run dev
