@@ -18,11 +18,21 @@ function fmtDate(value: string): string {
 }
 
 function statusLabel(item: NotificationItem): string {
+  if (item.status === 'SENT' && item.deliveries.some((delivery) => delivery.status === 'FAILED')) {
+    return '部分失败'
+  }
   if (item.status === 'SENT') return '已发送'
   if (item.status === 'PENDING') return '待发送'
   if (item.status === 'RETRYING') return '重试中'
   if (item.status === 'FAILED') return '发送失败'
   return '已跳过'
+}
+
+function statusClass(item: NotificationItem): string {
+  if (item.status === 'SENT' && item.deliveries.some((delivery) => delivery.status === 'FAILED')) {
+    return 'failed'
+  }
+  return item.status.toLowerCase()
 }
 
 function deliveryLabel(channel: string): string {
@@ -105,7 +115,7 @@ onUnmounted(() => {
             {{ item.decision }}
           </span>
           <span class="priority-chip">{{ item.priority }}</span>
-          <span class="notification-status" :class="item.status.toLowerCase()">
+          <span class="notification-status" :class="statusClass(item)">
             {{ statusLabel(item) }}
           </span>
           <span class="mono notification-time">{{ fmtDate(item.created_at) }}</span>
