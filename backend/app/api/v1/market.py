@@ -21,18 +21,10 @@ from app.infrastructure.market.base import (
     Quote,
     Timeframe,
 )
+from app.infrastructure.market.factory import get_provider
 from app.infrastructure.market.okx import OKXProvider
 
 router = APIRouter(prefix="/assets/{symbol}", tags=["market"])
-
-_provider: OKXProvider | None = None
-
-
-def get_provider() -> OKXProvider:
-    global _provider
-    if _provider is None:
-        _provider = OKXProvider()
-    return _provider
 
 
 def get_market_service(

@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 
-import { api, type LLMStatus } from '@/api/client'
+import {
+  api,
+  type EmailStatus,
+  type LLMStatus,
+  type NotificationPreferences,
+} from '@/api/client'
 
 const status = ref<LLMStatus | null>(null)
 const baseUrl = ref('')
@@ -15,7 +20,29 @@ const error = ref<string | null>(null)
 const notice = ref<string | null>(null)
 const testResult = ref<{ ok: boolean; latency_ms?: number; error?: string; message?: string } | null>(null)
 
-const sourceLabel = computed(() => {
+const email = ref<EmailStatus | null>(null)
+const emailHost = ref('')
+const emailPort = ref(587)
+const emailUsername = ref('')
+const emailPassword = ref('')
+const emailClearPassword = ref(false)
+const emailFrom = ref('')
+const emailTo = ref('')
+const emailFromName = ref('Thesium')
+const emailTls = ref(true)
+const emailSsl = ref(false)
+const emailSaving = ref(false)
+const emailTesting = ref(false)
+const emailError = ref<string | null>(null)
+const emailNotice = ref<string | null>(null)
+const emailTest = ref<{ ok: boolean; latency_ms?: number; error?: string; message?: string } | null>(null)
+
+const prefs = ref<NotificationPreferences | null>(null)
+const prefsSaving = ref(false)
+const prefsError = ref<string | null>(null)
+const prefsNotice = ref<string | null>(null)
+
+const llmSourceLabel = computed(() => {
   if (!status.value) return '—'
   if (status.value.source === 'database') return '数据库'
   if (status.value.source === 'environment') return '环境变量（保存后会切到数据库）'
@@ -27,9 +54,7 @@ function fmtDate(value: string | null): string {
   return new Date(value).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })
 }
 
-async function load(): Promise<void> {
-  loading.value = true
-  error.value = null
+async function loadLlm(): Promise<void> {
   try {
     const result = await api.llmStatus()
     status.value = result
@@ -37,12 +62,42 @@ async function load(): Promise<void> {
     model.value = result.model
   } catch (caught) {
     error.value = caught instanceof Error ? caught.message : '配置加载失败'
-  } finally {
-    loading.value = false
   }
 }
 
-async function save(): Promise<void> {
+async function loadEmail(): Promise<void> {
+  try {
+    const result = await api.emailStatus()
+    email.value = result
+    emailHost.value = result.host
+    emailPort.value = result.port
+    emailUsername.value = result.username
+    emailFrom.value = result.from_address
+    emailTo.value = result.to_address
+    emailFromName.value = result.from_name || 'Thesium'
+    emailTls.value = result.use_tls
+    emailSsl.value = result.use_ssl
+  } catch (caught) {
+    emailError.value = caught instanceof Error ? caught.message : '邮件配置加载失败'
+  }
+}
+
+async function loadPrefs(): Promise<void> {
+  try {
+    prefs.value = await api.notificationPreferences()
+  } catch (caught) {
+    prefsError.value = caught instanceof Error ? caught.message : '通知偏好加载失败'
+  }
+}
+
+async function load(): Promise<void> {
+  loading.value = true
+  error.value = null
+  await Promise.all([loadLlm(), loadEmail(), loadPrefs()])
+  loading.value = false
+}
+
+async function saveLlm(): Promise<void> {
   saving.value = true
   error.value = null
   notice.value = null
@@ -64,7 +119,7 @@ async function save(): Promise<void> {
   }
 }
 
-async function test(): Promise<void> {
+async function testLlm(): Promise<void> {
   testing.value = true
   error.value = null
   testResult.value = null
@@ -74,11 +129,89 @@ async function test(): Promise<void> {
       model: model.value,
       api_key: apiKey.value || undefined,
     })
-    await load()
+    await loadLlm()
   } catch (caught) {
     error.value = caught instanceof Error ? caught.message : '连接测试失败'
   } finally {
     testing.value = false
+  }
+}
+
+function onTlsChange(): void {
+  if (emailTls.value) emailSsl.value = false
+}
+
+function onSslChange(): void {
+  if (emailSsl.value) emailTls.value = false
+}
+
+async function saveEmail(): Promise<void> {
+  emailSaving.value = true
+  emailError.value = null
+  emailNotice.value = null
+  emailTest.value = null
+  try {
+    const result = await api.saveEmailConfig({
+      host: emailHost.value,
+      port: Number(emailPort.value),
+      from_address: emailFrom.value,
+      to_address: emailTo.value || undefined,
+      from_name: emailFromName.value || undefined,
+      username: emailUsername.value || undefined,
+      password: emailPassword.value || undefined,
+      clear_password: emailClearPassword.value,
+      use_tls: emailTls.value,
+      use_ssl: emailSsl.value,
+    })
+    email.value = result
+    emailPassword.value = ''
+    emailClearPassword.value = false
+    emailNotice.value = 'SMTP 配置已保存。密码加密存储，不会回显。'
+  } catch (caught) {
+    emailError.value = caught instanceof Error ? caught.message : '保存失败'
+  } finally {
+    emailSaving.value = false
+  }
+}
+
+async function testEmail(): Promise<void> {
+  emailTesting.value = true
+  emailError.value = null
+  emailTest.value = null
+  try {
+    emailTest.value = await api.testEmail({
+      host: emailHost.value,
+      port: Number(emailPort.value),
+      from_address: emailFrom.value,
+      to_address: emailTo.value || undefined,
+      from_name: emailFromName.value || undefined,
+      username: emailUsername.value || undefined,
+      password: emailPassword.value || undefined,
+      use_tls: emailTls.value,
+      use_ssl: emailSsl.value,
+    })
+    if (emailTest.value.ok) {
+      emailTest.value = { ...emailTest.value, message: '测试邮件已发送，请查收。' }
+    }
+  } catch (caught) {
+    emailError.value = caught instanceof Error ? caught.message : '测试邮件发送失败'
+  } finally {
+    emailTesting.value = false
+  }
+}
+
+async function savePrefs(): Promise<void> {
+  if (!prefs.value) return
+  prefsSaving.value = true
+  prefsError.value = null
+  prefsNotice.value = null
+  try {
+    prefs.value = await api.saveNotificationPreferences(prefs.value)
+    prefsNotice.value = '通知偏好已保存。'
+  } catch (caught) {
+    prefsError.value = caught instanceof Error ? caught.message : '保存失败'
+  } finally {
+    prefsSaving.value = false
   }
 }
 
@@ -94,24 +227,31 @@ onMounted(() => {
       <span class="product-symbol large">⚙</span>
       <div>
         <p class="eyebrow">Settings</p>
-        <h1>LLM Provider</h1>
-        <p class="muted">OpenAI 兼容接口；Key 加密保存，前端不会回显。</p>
+        <h1>模型、邮件与通知</h1>
+        <p class="muted">全部保存到本地 PostgreSQL；密钥加密存储，前端不回显。</p>
       </div>
     </div>
-    <span class="status-pill" :class="{ active: status?.configured }">
-      {{ status?.configured ? '已配置' : '未配置' }}
-    </span>
   </section>
 
   <p v-if="loading" class="muted">加载配置…</p>
   <p v-if="error" class="error">{{ error }}</p>
   <p v-if="notice" class="notice">{{ notice }}</p>
 
-  <section v-if="status" class="form-card">
+  <section v-if="status" class="form-card settings-card">
+    <header class="settings-card-head">
+      <div>
+        <p class="eyebrow">LLM Provider</p>
+        <h2>模型</h2>
+      </div>
+      <span class="status-pill" :class="{ active: status.configured }">
+        {{ status.configured ? '已配置' : '未配置' }}
+      </span>
+    </header>
+
     <div class="settings-status">
       <div>
         <span>来源</span>
-        <strong>{{ sourceLabel }}</strong>
+        <strong>{{ llmSourceLabel }}</strong>
       </div>
       <div>
         <span>状态</span>
@@ -152,10 +292,10 @@ onMounted(() => {
     </div>
 
     <div class="form-actions">
-      <button class="ghost-button" type="button" :disabled="testing || saving" @click="test">
+      <button class="ghost-button" type="button" :disabled="testing || saving" @click="testLlm">
         {{ testing ? '测试中…' : '测试连接' }}
       </button>
-      <button class="primary-button" type="button" :disabled="saving || testing" @click="save">
+      <button class="primary-button" type="button" :disabled="saving || testing" @click="saveLlm">
         {{ saving ? '保存中…' : '保存到数据库' }}
       </button>
     </div>
@@ -166,7 +306,185 @@ onMounted(() => {
     </p>
 
     <p class="form-note">
-      Thesis 的「AI 润色」「AI 帮我整理」会使用这里保存的配置。修改后无需重启 API；保存即生效。
+      Thesis 的「AI 润色」「AI 帮我整理」与只读对话都使用这里保存的配置。修改后无需重启 API。
+    </p>
+  </section>
+
+  <section v-if="email" class="form-card settings-card">
+    <header class="settings-card-head">
+      <div>
+        <p class="eyebrow">Email · SMTP</p>
+        <h2>邮件通知</h2>
+      </div>
+      <span class="status-pill" :class="{ active: email.configured && email.verified_at }">
+        {{ email.verified_at ? '已验证' : email.configured ? '待验证' : '未配置' }}
+      </span>
+    </header>
+
+    <div class="settings-status">
+      <div>
+        <span>状态</span>
+        <strong>{{ email.status }}</strong>
+      </div>
+      <div>
+        <span>密码</span>
+        <strong>{{ email.has_password ? '已保存（加密）' : '未保存' }}</strong>
+      </div>
+      <div>
+        <span>最近测试</span>
+        <strong>{{ fmtDate(email.last_tested_at) }}</strong>
+      </div>
+      <div>
+        <span>验证时间</span>
+        <strong>{{ fmtDate(email.verified_at) }}</strong>
+      </div>
+    </div>
+
+    <div class="form-grid">
+      <label class="form-field">
+        <span>SMTP Host</span>
+        <input v-model="emailHost" type="text" placeholder="smtp.example.com" />
+      </label>
+      <label class="form-field">
+        <span>Port</span>
+        <input v-model.number="emailPort" type="number" min="1" max="65535" />
+        <small>STARTTLS 常用 587；SSL 常用 465。</small>
+      </label>
+      <label class="form-field">
+        <span>Username</span>
+        <input v-model="emailUsername" type="text" autocomplete="username" placeholder="登录用户名，可留空" />
+      </label>
+      <label class="form-field">
+        <span>Password</span>
+        <input v-model="emailPassword" type="password" autocomplete="new-password" placeholder="留空表示不修改" />
+        <small>只写入，不回显；清除请勾选下方选项。</small>
+      </label>
+      <label class="form-field">
+        <span>From address</span>
+        <input v-model="emailFrom" type="email" placeholder="thesium@example.com" />
+      </label>
+      <label class="form-field">
+        <span>To address</span>
+        <input v-model="emailTo" type="email" placeholder="留空则发到 From 地址" />
+        <small>决策摘要的收件地址；建议填你自己的邮箱。</small>
+      </label>
+      <label class="form-field">
+        <span>From name</span>
+        <input v-model="emailFromName" type="text" placeholder="Thesium" />
+      </label>
+      <label class="form-field checkbox">
+        <input v-model="emailClearPassword" type="checkbox" />
+        <span>清除已保存的 SMTP 密码</span>
+      </label>
+      <label class="form-field checkbox">
+        <input v-model="emailTls" type="checkbox" @change="onTlsChange" />
+        <span>使用 STARTTLS</span>
+      </label>
+      <label class="form-field checkbox">
+        <input v-model="emailSsl" type="checkbox" @change="onSslChange" />
+        <span>使用 SSL（通常 465）</span>
+      </label>
+    </div>
+
+    <div class="form-actions">
+      <button class="ghost-button" type="button" :disabled="emailTesting || emailSaving" @click="testEmail">
+        {{ emailTesting ? '发送中…' : '发送测试邮件' }}
+      </button>
+      <button class="primary-button" type="button" :disabled="emailSaving || emailTesting" @click="saveEmail">
+        {{ emailSaving ? '保存中…' : '保存 SMTP 配置' }}
+      </button>
+    </div>
+
+    <p v-if="emailError" class="error">{{ emailError }}</p>
+    <p v-if="emailNotice" class="notice">{{ emailNotice }}</p>
+    <p v-if="emailTest" class="test-result" :class="{ ok: emailTest.ok }">
+      <template v-if="emailTest.ok">
+        发送成功 · {{ emailTest.latency_ms }} ms · {{ emailTest.message }}
+      </template>
+      <template v-else>发送失败 · {{ emailTest.error }} · {{ emailTest.message }}</template>
+    </p>
+
+    <p class="form-note">
+      测试使用当前表单值，不会保存；保存后通知才会使用新配置。邮件只包含决策摘要与 Web 链接，
+      不含 API Key 或完整 Prompt；失败会按 1/5/30 分钟重试，最多 3 次。
+    </p>
+  </section>
+
+  <section v-if="prefs" class="form-card settings-card">
+    <header class="settings-card-head">
+      <div>
+        <p class="eyebrow">Notification policy</p>
+        <h2>通知偏好</h2>
+      </div>
+      <span class="status-pill active">程序裁决</span>
+    </header>
+
+    <div class="settings-status">
+      <div>
+        <span>决策通知</span>
+        <strong>{{ prefs.decision_alert_enabled ? '开' : '关' }}</strong>
+      </div>
+      <div>
+        <span>风险通知</span>
+        <strong>{{ prefs.risk_alert_enabled ? '开' : '关' }}</strong>
+      </div>
+      <div>
+        <span>邮件渠道</span>
+        <strong>{{ prefs.email_enabled ? '开' : '关' }}</strong>
+      </div>
+      <div>
+        <span>免打扰</span>
+        <strong>{{ prefs.quiet_hours_enabled ? `${prefs.quiet_hours_start}–${prefs.quiet_hours_end}` : '关' }}</strong>
+      </div>
+    </div>
+
+    <div class="form-grid">
+      <label class="form-field checkbox">
+        <input v-model="prefs.decision_alert_enabled" type="checkbox" />
+        <span>重要决策通知（HIGH / URGENT、类别跃迁、论点冲突）</span>
+      </label>
+      <label class="form-field checkbox">
+        <input v-model="prefs.risk_alert_enabled" type="checkbox" />
+        <span>风险类通知（风险预算被突破）</span>
+      </label>
+      <label class="form-field checkbox">
+        <input v-model="prefs.email_enabled" type="checkbox" />
+        <span>通过邮件发送（关闭后仍保留 Web 通知中心记录）</span>
+      </label>
+      <label class="form-field checkbox">
+        <input v-model="prefs.quiet_hours_enabled" type="checkbox" />
+        <span>启用免打扰时段（URGENT 可绕过）</span>
+      </label>
+      <label class="form-field">
+        <span>免打扰开始</span>
+        <input v-model="prefs.quiet_hours_start" type="time" />
+      </label>
+      <label class="form-field">
+        <span>免打扰结束</span>
+        <input v-model="prefs.quiet_hours_end" type="time" />
+      </label>
+      <label class="form-field">
+        <span>每日邮件上限</span>
+        <input v-model.number="prefs.daily_email_limit" type="number" min="1" max="50" />
+      </label>
+      <label class="form-field">
+        <span>相同通知冷却（分钟）</span>
+        <input v-model.number="prefs.cooldown_minutes" type="number" min="0" max="10080" />
+      </label>
+    </div>
+
+    <div class="form-actions">
+      <button class="primary-button" type="button" :disabled="prefsSaving" @click="savePrefs">
+        {{ prefsSaving ? '保存中…' : '保存通知偏好' }}
+      </button>
+    </div>
+
+    <p v-if="prefsError" class="error">{{ prefsError }}</p>
+    <p v-if="prefsNotice" class="notice">{{ prefsNotice }}</p>
+
+    <p class="form-note">
+      普通 WAIT / HOLD 不打扰；HOLD→SELL 等类别跃迁、HIGH/URGENT、论点转 CONFLICTING、
+      风险预算突破才会进入通知。模型只建议，最终由程序规则裁决并记录原因。
     </p>
   </section>
 </template>

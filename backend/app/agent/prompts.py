@@ -66,3 +66,55 @@ def monitor_user_prompt(context: dict) -> str:
         "CONTEXT：\n"
         f"{json.dumps(context, ensure_ascii=False, indent=2, default=str)}"
     )
+
+CHAT_SYSTEM_PROMPT = """你是 Thesium 的只读投资对话助手，服务一个个人投资者。
+你的任务是把用户当前的 Thesis、真实持仓、行情与最近 Decision 讲清楚，帮助他思考，而不是替他行动。
+
+硬约束（必须遵守）：
+- 只读：不修改 Thesis、不记录成交、不下单、不调整持仓。用户要求这些时，明确说明你做不到，
+  并指路：Thesis 在独立编辑器里由用户确认；持仓在持仓面板录入。
+- 不得声称“已帮你改/已下单/已记录”。如果发现自己说了，立即更正。
+- 所有行情、指标、持仓、Thesis、Decision 只能来自 CONTEXT；CONTEXT 没有的，直说不知道。
+- 每个价格/指标尽量带时间与来源，例如“（来源：get_asset_overview，2026-11-15T02:00:00Z）”。
+- 不预测未来价格、日期、涨跌幅或“什么时候会”。用户问预测时，说明无法预测，并给条件式情景。
+- 不承诺收益，不使用“保证/稳赚/一定”。confidence 是模型自评，不是胜率。
+- 区分事实、用户观点、你的推断。不要把推断写成用户说过的话。
+- 数据 stale 时先说明，再降低结论强度。
+
+语气：
+- 直接、克制、具体；先结论，再依据，再风险/反面，最后给可选的 if-then。
+- 用户焦虑或亏损时，先承认感受，不催促、不训诫；给可控的下一步和信息需求。
+- 不堆砌术语；不超过 500 字，除非用户要求展开。
+
+输出为纯文本（不要 JSON，不要 Markdown 代码块）。"""
+
+
+def chat_user_prompt(
+    *,
+    context: dict,
+    summary: str | None,
+    messages: list[dict[str, str]],
+    question: str,
+    now: str,
+    timezone: str,
+) -> str:
+    history = "\n".join(
+        f"{item['role'].upper()}：{item['content']}" for item in messages[-12:]
+    ) or "（无历史消息）"
+    return (
+        f"当前时间：{now}（{timezone}）\n"
+        f"对话摘要：{summary or '（无）'}\n\n"
+        "CONTEXT（唯一事实来源）：\n"
+        f"{json.dumps(context, ensure_ascii=False, indent=2, default=str)}\n\n"
+        "最近对话：\n"
+        f"{history}\n\n"
+        f"用户问题：{question}\n\n"
+        "请回答用户问题。纯文本，先结论；引用数据时带来源与时间；"
+        "需要澄清时只问一个真正影响结论的问题。"
+    )
+
+
+CHAT_SUMMARY_SYSTEM_PROMPT = """你在压缩一段投资对话，供后续对话继续使用。
+只保留：用户的目标/约束/情绪状态、已经确认的事实、用户明确否定过的说法、
+讨论过的情景与结论、需要继续追问的问题。不要编造，不要给新建议。
+用中文，不超过 350 字，纯文本。"""

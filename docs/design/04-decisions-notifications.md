@@ -307,6 +307,7 @@
 - 每轮必须读取上一条 Decision，并说明「变了什么 / 为什么没变」。
 - 不允许每小时无条件翻转结论；若结论变化，`changes_since_previous` 必须给出具体触发。
 - 相同 `decision` + 相同 `thesis_alignment` + 相似 `summary`（长度/关键词）→ 视为无实质变化。
+- v1 尚未实现自动条件引擎：N4 只接受 Decision 中显式 `triggered=true` 的失效条件；阈值文本不会被猜测解析。
 - 程序可对「连续两次相反结论」要求下一次 Run 先给 `REVIEW`，避免来回打脸（v1 记录 warning，不强制）。
 
 ---
@@ -318,7 +319,8 @@
 ```text
 Decision 落库
   → NotificationPolicy.evaluate(decision, prefs, history, now)
-  → 生成 notifications(PENDING/SKIPPED) + dedupe_key
+  → 无任何触发：不落通知行（避免每小时 WAIT 刷屏）
+  → 有触发：生成 notifications(PENDING/SKIPPED) + dedupe_key
   → 若 PENDING：入队 NOTIFICATION_SEND
   → 发送（Email / Feishu）
   → notification_deliveries 记录成功/失败/重试
@@ -335,7 +337,7 @@ LLM 的 `notification_recommendation` 只是输入之一；最终由程序规则
 | N1 | `priority ∈ {HIGH, URGENT}` | 重要建议 |
 | N2 | 决策类别跃迁 | 如 `WAIT→BUY`、`HOLD→SELL`、`BUY→REDUCE` |
 | N3 | `thesis_alignment` 从非 `CONFLICTING` 变为 `CONFLICTING` | 论点冲突恶化 |
-| N4 | `invalidation_conditions` 被触发 | 需要用户重新审视计划 |
+| N4 | `invalidation_conditions` 被程序标记为 `triggered=true` | 需要用户重新审视计划 |
 | N5 | `position_impact=RISK_BUDGET_EXCEEDED` | 风险预算被突破 |
 
 抑制条件（任一命中则不通知）：
@@ -411,8 +413,9 @@ stateDiagram-v2
 
 ### 8.1 配置与验证
 
-- SMTP host/port/username/password（加密）/from。
-- 设置页「发送测试邮件」；成功记录 `email_verified_at`。
+- 设置页维护 SMTP host/port/username/password（Fernet 加密）/from/to；`to` 留空回退到 `from`。
+- 设置页「发送测试邮件」使用当前表单值，不写库；保存后测试成功记录 `email_verified_at`。
+- 通知偏好：决策/风险/邮件开关、免打扰时段、每日上限、冷却时间；保存到数据库。
 - v1 单用户，不做退订链接；提供关闭通知开关。
 
 ### 8.2 模板

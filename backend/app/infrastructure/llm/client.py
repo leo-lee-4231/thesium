@@ -1,6 +1,7 @@
 import json
 import re
 import time
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any
 
@@ -130,3 +131,82 @@ class LLMClient:
         if not isinstance(parsed, dict):
             raise LLMError("LLM_BAD_JSON", "LLM JSON must be an object")
         return parsed
+
+
+    async def chat_text(
+        self, system: str, user: str, *, max_tokens: int | None = None
+    ) -> str:
+        if not self.configured:
+            raise LLMNotConfigured(
+                "LLM provider is not configured; set it in Settings"
+            )
+        payload: dict[str, Any] = {
+            "model": self._config.model,  # type: ignore[union-attr]
+            "temperature": 0.4,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+        }
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
+        response = await self._post(payload)
+        body = response.json()
+        try:
+            content = body["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError) as exc:
+            raise LLMError("LLM_BAD_RESPONSE", "LLM response missing content") from exc
+        if not isinstance(content, str) or not content.strip():
+            raise LLMError("LLM_BAD_RESPONSE", "LLM returned empty content")
+        return content.strip()
+
+    async def chat_stream(
+        self, system: str, user: str, *, temperature: float = 0.4
+    ) -> AsyncIterator[str]:
+        if not self.configured:
+            raise LLMNotConfigured(
+                "LLM provider is not configured; set it in Settings"
+            )
+        payload = {
+            "model": self._config.model,  # type: ignore[union-attr]
+            "temperature": temperature,
+            "stream": True,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+        }
+        url = f"{self._config.base_url}/chat/completions"  # type: ignore[union-attr]
+        timeout = httpx.Timeout(90.0, connect=10.0)
+        try:
+            async with (
+                httpx.AsyncClient(timeout=timeout, trust_env=True) as client,
+                client.stream(
+                    "POST", url, headers=self._headers(), json=payload
+                ) as response,
+            ):
+                    if response.status_code >= 400:
+                        body = (await response.aread()).decode("utf-8", "replace")
+                        raise LLMError(
+                            "LLM_UPSTREAM_ERROR",
+                            f"LLM HTTP {response.status_code}: {body[:200]}",
+                        )
+                    async for line in response.aiter_lines():
+                        if not line or not line.startswith("data:"):
+                            continue
+                        data = line[5:].strip()
+                        if data == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(data)
+                            delta = chunk["choices"][0]["delta"].get("content")
+                        except (json.JSONDecodeError, KeyError, IndexError, TypeError):
+                            continue
+                        if delta:
+                            yield str(delta)
+        except httpx.TimeoutException as exc:
+            raise LLMError("LLM_TIMEOUT", "LLM stream timed out") from exc
+        except LLMError:
+            raise
+        except httpx.HTTPError as exc:
+            raise LLMError("LLM_UPSTREAM_ERROR", str(exc)) from exc

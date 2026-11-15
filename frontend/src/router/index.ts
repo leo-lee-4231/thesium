@@ -19,6 +19,16 @@ const router = createRouter({
       component: () => import('@/views/ThesisEditorView.vue'),
     },
     {
+      path: '/products/:symbol/chat',
+      name: 'chat',
+      component: () => import('@/views/ChatView.vue'),
+    },
+    {
+      path: '/runs/:runId',
+      name: 'run-detail',
+      component: () => import('@/views/RunDetailView.vue'),
+    },
+    {
       path: '/products/:symbol',
       name: 'product',
       component: () => import('@/views/ProductView.vue'),

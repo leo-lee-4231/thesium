@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 
 import { api, type Asset, type Candle, type MarketOverview, type Stream } from '@/api/client'
 import DecisionPanel from '@/components/DecisionPanel.vue'
+import NotificationPanel from '@/components/NotificationPanel.vue'
 import PositionPanel from '@/components/PositionPanel.vue'
 import PriceChart from '@/components/PriceChart.vue'
 
@@ -154,9 +155,23 @@ onMounted(() => {
 
   <template v-else>
     <div class="tabs">
-      <button class="tab active" type="button">概览</button>
-      <button class="tab" type="button" disabled>对话 · P5</button>
-      <button class="tab" type="button" disabled>配置 · P1</button>
+      <RouterLink class="tab active" :to="`/products/${symbol.toLowerCase()}`">概览</RouterLink>
+      <RouterLink
+        v-if="stream"
+        class="tab"
+        :to="`/products/${symbol.toLowerCase()}/chat`"
+      >
+        对话
+      </RouterLink>
+      <button v-else class="tab" type="button" disabled>对话</button>
+      <RouterLink
+        v-if="stream"
+        class="tab"
+        :to="`/products/${symbol.toLowerCase()}/thesis`"
+      >
+        投资论点
+      </RouterLink>
+      <button v-else class="tab" type="button" disabled>投资论点</button>
     </div>
 
     <div v-if="!loading && !stream" class="banner">
@@ -290,6 +305,7 @@ onMounted(() => {
 
     <PositionPanel v-if="stream" :stream-id="stream.id" :symbol="symbol" />
     <DecisionPanel v-if="stream" :stream-id="stream.id" />
+    <NotificationPanel v-if="stream" :stream-id="stream.id" />
 
     <div class="placeholder-grid">
       <RouterLink
@@ -314,13 +330,25 @@ onMounted(() => {
         <p class="muted">创建投资产品后，在这里写 Thesis、用 AI 润色/整理并确认版本。</p>
       </article>
 
-      <article class="card">
+      <RouterLink
+        v-if="stream"
+        class="card thesis-card"
+        :to="`/products/${symbol.toLowerCase()}/chat`"
+      >
+        <header class="card-head">
+          <span class="card-kicker">Conversation</span>
+          <span class="phase">打开 →</span>
+        </header>
+        <h2>对话</h2>
+        <p class="muted">只读盘问这个产品：价格、趋势、论点一致性、情景推演与情绪支持。</p>
+      </RouterLink>
+      <article v-else class="card">
         <header class="card-head">
           <span class="card-kicker">Conversation</span>
           <span class="phase">P5</span>
         </header>
         <h2>对话</h2>
-        <p class="muted">只读盘问这个产品：价格、趋势、论点一致性、情景推演与情绪支持。</p>
+        <p class="muted">创建投资产品后，可以只读盘问价格、趋势、论点一致性与情景。</p>
       </article>
     </div>
 

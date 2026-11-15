@@ -6,6 +6,19 @@
 
 ---
 
+## 0. 当前实现状态
+
+| 阶段 | 状态 | 说明 |
+|---|---|---|
+| P0 骨架 | 完成 | FastAPI、Postgres、Alembic、Worker、Vue |
+| P1 行情与产品 | 完成 | OKX SPOT/SWAP、K 线、指标、产品卡 |
+| P2 持仓 | 完成 | 现货 + USDT 永续、事件、快照、风险 |
+| P3 Thesis | 完成 | 版本、AI 润色/整理、分级确认、diff |
+| P4 Runtime/监控/通知 | 完成 | 调度器、jobs 表、Decision、邮件通知、重试 |
+| P5 Web 对话 | 完成 | SSE、只读、来源、会话持久化、Run 回放 |
+| P6 Dashboard/验收 | 收尾 | 首页当前产品概览、通知中心、Run 详情已加 |
+| P7 飞书 | 暂缓 | 用户决定先不做；邮件已可配置 |
+
 ## 1. 原则
 
 1. **先闭环，再加面**：Thesis 版本、持仓快照、Decision、通知先跑通，对话复用同一 Runtime。

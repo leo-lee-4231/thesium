@@ -39,6 +39,12 @@ class Settings(BaseSettings):
     )
     log_level: str = "INFO"
 
+    web_base_url: str = "http://127.0.0.1:5173"
+    scheduler_enabled: bool = True
+    worker_poll_seconds: int = 15
+    worker_job_batch: int = 3
+    stale_job_minutes: int = 30
+
     @property
     def is_production(self) -> bool:
         return self.environment.lower() in {"production", "prod"}

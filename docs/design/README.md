@@ -2,20 +2,20 @@
 
 > 设计原则一句话：**对话是思考空间，Thesis 是承诺；对话只读，正式变更由用户显式提交。**
 
-本目录记录 Thesium v1 的产品边界、领域模型与工程契约。文档先于代码，口径确认后再进入 P0。
+本目录记录 Thesium v1 的产品边界、领域模型与工程契约。P0–P5 已落地，P6 仍在收尾；飞书（P7）按当前计划暂缓，优先 Web 闭环。
 
 ## 阅读顺序
 
 | # | 文档 | 内容 | 状态 |
 |---|---|---|---|
 | 00 | [架构决策记录](00-decisions.md) | D1–D22，含对话/渠道/只读/润色/永续边界 | 已确认 |
-| 01 | [领域模型](01-domain-model.md) | 限界上下文、聚合不变量、ER 图、核心表与索引 | 草案 |
-| 02 | [Investment Thesis](02-thesis.md) | 状态机、JSON Schema、分级确认规则 | 草案 |
-| 03 | [Agent Runtime](03-agent-runtime.md) | Prompt 分层、Tool Registry、Run 生命周期、对话装配 | 草案 |
-| 04 | [决策与通知](04-decisions-notifications.md) | Decision Schema、通知优先级/冷却/去重 | 草案 |
-| 05 | [REST API](05-api.md) | Web、对话、渠道、确认接口草案 | 草案 |
-| 06 | [路线图](06-roadmap.md) | P0–P7 任务拆分与验收场景 | 草案 |
-| 07 | [对话与多渠道](07-conversation-and-channels.md) | 对话域、渠道适配器、飞书接入、安全与语气 | 草案 |
+| 01 | [领域模型](01-domain-model.md) | 限界上下文、聚合不变量、ER 图、核心表与索引 | 已实现（P0–P5 表） |
+| 02 | [Investment Thesis](02-thesis.md) | 状态机、JSON Schema、分级确认规则 | 已实现 |
+| 03 | [Agent Runtime](03-agent-runtime.md) | Prompt 分层、Tool Registry、Run 生命周期、对话装配 | 已实现（Web 只读对话） |
+| 04 | [决策与通知](04-decisions-notifications.md) | Decision Schema、通知优先级/冷却/去重 | 已实现（邮件） |
+| 05 | [REST API](05-api.md) | Web、对话、渠道、确认接口 | 已实现（除飞书/Proposal） |
+| 06 | [路线图](06-roadmap.md) | P0–P7 任务拆分与验收场景 | P0–P5 完成，P6 收尾 |
+| 07 | [对话与多渠道](07-conversation-and-channels.md) | 对话域、渠道适配器、飞书接入、安全与语气 | Web 已实现；飞书暂缓 |
 
 ## 当前结论（TL;DR）
 
@@ -29,4 +29,5 @@
 
 ## 尚未确认
 
-- 飞书是否默认推送 HIGH/URGENT 决策（邮件 + IM），以及只推摘要（不影响领域模型，v1.1 前决定）。
+- 飞书默认推送范围（邮件 + IM，仅摘要）——渠道暂缓，恢复时再定。
+- P6 通知中心是否增加「全部已读 / 按状态筛选」；当前先支持记录、原因与邮件重试。

@@ -291,10 +291,19 @@ export interface Decision {
 
 export interface AgentRun {
   id: string
+  stream_id: string
   status: string
   task_type: string
   model: string | null
   prompt_version: string
+  thesis_version_id: string | null
+  position_snapshot_id: string | null
+  derivative_snapshot_id: string | null
+  market_snapshot_id: string | null
+  input_digest: string | null
+  input_context: Record<string, unknown> | null
+  tool_calls: { tool: string; label: string; as_of: string | null }[]
+  output_parsed: Record<string, unknown> | null
   latency_ms: number | null
   error_code: string | null
   error_message: string | null
@@ -401,6 +410,130 @@ export interface Stream {
   market_type: string
 }
 
+
+export interface EmailStatus {
+  configured: boolean
+  host: string
+  port: number
+  username: string
+  from_address: string
+  to_address: string
+  from_name: string
+  use_tls: boolean
+  use_ssl: boolean
+  has_password: boolean
+  status: string
+  last_tested_at: string | null
+  verified_at: string | null
+}
+
+export interface EmailConfigUpdate {
+  host: string
+  port: number
+  from_address: string
+  to_address?: string
+  from_name?: string
+  username?: string
+  password?: string
+  clear_password?: boolean
+  use_tls: boolean
+  use_ssl: boolean
+}
+
+export interface EmailTestResult {
+  ok: boolean
+  latency_ms?: number
+  error?: string
+  message?: string
+  to?: string
+}
+
+export interface NotificationPreferences {
+  decision_alert_enabled: boolean
+  risk_alert_enabled: boolean
+  email_enabled: boolean
+  daily_summary_enabled: boolean
+  quiet_hours_enabled: boolean
+  quiet_hours_start: string
+  quiet_hours_end: string
+  daily_email_limit: number
+  cooldown_minutes: number
+  feishu_push_enabled: boolean
+}
+
+export interface NotificationDelivery {
+  channel: string
+  status: string
+  attempts: number
+  sent_at: string | null
+  next_attempt_at: string | null
+  last_error: string | null
+}
+
+export interface NotificationItem {
+  id: string
+  stream_id: string
+  decision_id: string
+  status: string
+  decision: string
+  alignment: string
+  priority: string
+  title: string
+  body_text: string
+  reason: string
+  triggered_rules: string[]
+  created_at: string
+  deliveries: NotificationDelivery[]
+}
+
+export interface Conversation {
+  id: string
+  stream_id: string
+  title: string
+  status: string
+  summary: string | null
+  message_count?: number
+  last_message?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ChatMessage {
+  id: string
+  seq: number
+  role: 'USER' | 'ASSISTANT' | 'SYSTEM'
+  content: string
+  status: string
+  agent_run_id: string | null
+  sources: ChatSource[]
+  created_at: string
+}
+
+export interface ChatSource {
+  tool: string
+  label: string
+  as_of: string | null
+  staleness?: string
+}
+
+export interface ChatDone {
+  conversation_id: string
+  message_id: string
+  agent_run_id: string
+  content: string
+  sources: ChatSource[]
+  guard_triggered: boolean
+  latency_ms?: number
+  replayed?: boolean
+}
+
+export type ChatEvent =
+  | { event: 'meta'; data: Record<string, unknown> }
+  | { event: 'status'; data: { message: string; stage?: string } }
+  | { event: 'delta'; data: { text: string } }
+  | { event: 'done'; data: ChatDone }
+  | { event: 'error'; data: { code: string; message: string; status_code?: number } }
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
@@ -432,8 +565,48 @@ export const api = {
     request<AnalyzeResult>(`/api/v1/streams/${streamId}/analyze`, { method: 'POST' }),
   decisions: (streamId: string) =>
     request<Decision[]>(`/api/v1/streams/${streamId}/decisions`),
+  emailStatus: () => request<EmailStatus>('/api/v1/settings/email'),
+  saveEmailConfig: (payload: EmailConfigUpdate) =>
+    request<EmailStatus>('/api/v1/settings/email', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  testEmail: (payload?: Partial<EmailConfigUpdate> & { recipient?: string }) =>
+    request<EmailTestResult>('/api/v1/settings/email/test', {
+      method: 'POST',
+      ...(payload ? { body: JSON.stringify(payload) } : {}),
+    }),
+  notificationPreferences: () =>
+    request<NotificationPreferences>('/api/v1/settings/notifications'),
+  saveNotificationPreferences: (payload: NotificationPreferences) =>
+    request<NotificationPreferences>('/api/v1/settings/notifications', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  notifications: (streamId?: string, limit = 30) =>
+    request<NotificationItem[]>(
+      `/api/v1/notifications?limit=${limit}${streamId ? `&stream_id=${streamId}` : ''}`,
+    ),
+  retryNotification: (notificationId: string) =>
+    request<{ id: string; status: string; reason: string }>(
+      `/api/v1/notifications/${notificationId}/retry`,
+      { method: 'POST' },
+    ),
+  conversations: (streamId: string) =>
+    request<Conversation[]>(`/api/v1/streams/${streamId}/conversations`),
+  createConversation: (streamId: string, title?: string) =>
+    request<Conversation>(`/api/v1/streams/${streamId}/conversations`, {
+      method: 'POST',
+      body: JSON.stringify({ title: title ?? null }),
+    }),
+  chatMessages: (conversationId: string, afterSeq?: number) =>
+    request<ChatMessage[]>(
+      `/api/v1/conversations/${conversationId}/messages${afterSeq ? `?after_seq=${afterSeq}` : ''}`,
+    ),
+
   agentRuns: (streamId: string) =>
     request<AgentRun[]>(`/api/v1/streams/${streamId}/agent-runs`),
+  agentRun: (runId: string) => request<AgentRun>(`/api/v1/agent-runs/${runId}`),
   llmStatus: () => request<LLMStatus>('/api/v1/settings/llm'),
   saveLlmConfig: (payload: LLMConfigUpdate) =>
     request<LLMStatus>('/api/v1/settings/llm', {
@@ -499,4 +672,78 @@ export const api = {
     request<{ instrument: string; timeframe: string; candles: Candle[] }>(
       `/api/v1/assets/${symbol}/candles?timeframe=${timeframe}&limit=${limit}`,
     ),
+}
+export interface ChatStreamHandlers {
+  onEvent?: (event: ChatEvent) => void
+}
+
+/**
+ * POST an SSE chat turn and surface events as they arrive.
+ *
+ * EventSource cannot POST, so this uses fetch + ReadableStream. The server
+ * closes the stream after a `done` or `error` event; `done` is also returned.
+ */
+export async function streamChat(
+  conversationId: string,
+  content: string,
+  clientMessageId: string,
+  handlers: ChatStreamHandlers = {},
+  signal?: AbortSignal,
+): Promise<ChatDone> {
+  const response = await fetch(`/api/v1/conversations/${conversationId}/messages/stream`, {
+    method: 'POST',
+    headers: {
+      Accept: 'text/event-stream',
+      'Content-Type': 'application/json',
+      'Idempotency-Key': clientMessageId,
+    },
+    body: JSON.stringify({ content, client_message_id: clientMessageId }),
+    signal,
+  })
+  if (!response.ok) {
+    const body = await response.json().catch(() => null)
+    throw new Error(body?.error?.message ?? `${response.status} ${response.statusText}`)
+  }
+  if (!response.body) throw new Error('浏览器不支持流式响应')
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let done: ChatDone | null = null
+
+  const handleBlock = (block: string): void => {
+    let event = 'message'
+    const dataLines: string[] = []
+    for (const line of block.split('\n')) {
+      if (line.startsWith('event:')) event = line.slice(6).trim()
+      else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim())
+    }
+    if (dataLines.length === 0) return
+    const data = JSON.parse(dataLines.join('\n')) as Record<string, unknown>
+    handlers.onEvent?.({ event, data } as ChatEvent)
+    if (event === 'error') {
+      throw new Error(String(data.message ?? '对话失败'))
+    }
+    if (event === 'done') done = data as unknown as ChatDone
+  }
+
+  try {
+    while (true) {
+      const { value, done: finished } = await reader.read()
+      buffer += decoder.decode(value ?? new Uint8Array(), { stream: !finished })
+      let boundary = buffer.indexOf('\n\n')
+      while (boundary >= 0) {
+        const block = buffer.slice(0, boundary)
+        buffer = buffer.slice(boundary + 2)
+        if (block.trim()) handleBlock(block)
+        boundary = buffer.indexOf('\n\n')
+      }
+      if (finished) break
+    }
+    if (buffer.trim()) handleBlock(buffer)
+  } finally {
+    reader.releaseLock()
+  }
+  if (!done) throw new Error('对话流意外结束，请重试')
+  return done
 }

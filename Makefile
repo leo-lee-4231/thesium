@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 COMPOSE := docker compose -f deploy/docker-compose.yml --env-file .env
 
-.PHONY: help env up down logs ps migrate seed backup test lint format typecheck build-web install-web dev-api dev-web
+.PHONY: help env up down logs ps migrate seed backup test lint format typecheck build-web install-web dev-api dev-worker dev-web
 
 help:
 	@echo "Thesium development targets"
@@ -16,6 +16,7 @@ help:
 	@echo "  make typecheck   Type-check the frontend"
 	@echo "  make build-web   Production build of the frontend"
 	@echo "  make dev-api     Run FastAPI locally (needs Postgres)"
+	@echo "  make dev-worker  Run scheduler + job worker locally"
 	@echo "  make dev-web     Run Vite dev server"
 	@echo "  make env         Show pyenv / nvm usage"
 
@@ -72,6 +73,9 @@ install-web:
 
 dev-api:
 	cd backend && uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+
+dev-worker:
+	cd backend && python -m app.workers.main
 
 dev-web:
 	cd frontend && npm run dev

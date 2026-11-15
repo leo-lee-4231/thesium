@@ -199,3 +199,51 @@ class StopLossPreviewRequest(BaseModel):
     explicit_stop: Decimal | None = Field(default=None, gt=0)
     liquidation_price: Decimal | None = Field(default=None, gt=0)
     fee_buffer_usd: Decimal = Field(default=Decimal("0"), ge=0)
+
+
+class EmailSettingsUpdate(BaseModel):
+    host: str = Field(min_length=1, max_length=255)
+    port: int = Field(default=587, ge=1, le=65535)
+    from_address: str = Field(min_length=3, max_length=320)
+    to_address: str | None = Field(default=None, max_length=320)
+    from_name: str | None = Field(default=None, max_length=120)
+    username: str | None = Field(default=None, max_length=320)
+    password: str | None = Field(default=None, max_length=500)
+    clear_password: bool = False
+    use_tls: bool = True
+    use_ssl: bool = False
+
+
+class EmailTestRequest(BaseModel):
+    host: str | None = Field(default=None, max_length=255)
+    port: int | None = Field(default=None, ge=1, le=65535)
+    from_address: str | None = Field(default=None, max_length=320)
+    to_address: str | None = Field(default=None, max_length=320)
+    from_name: str | None = Field(default=None, max_length=120)
+    username: str | None = Field(default=None, max_length=320)
+    password: str | None = Field(default=None, max_length=500)
+    use_tls: bool | None = None
+    use_ssl: bool | None = None
+    recipient: str | None = Field(default=None, max_length=320)
+
+
+class NotificationPreferencesUpdate(BaseModel):
+    decision_alert_enabled: bool = True
+    risk_alert_enabled: bool = True
+    email_enabled: bool = True
+    daily_summary_enabled: bool = False
+    quiet_hours_enabled: bool = True
+    quiet_hours_start: str = Field(default="23:00", pattern=r"^\d{2}:\d{2}$")
+    quiet_hours_end: str = Field(default="08:00", pattern=r"^\d{2}:\d{2}$")
+    daily_email_limit: int = Field(default=4, ge=1, le=50)
+    cooldown_minutes: int = Field(default=240, ge=0, le=10080)
+    feishu_push_enabled: bool = False
+
+
+class ConversationCreate(BaseModel):
+    title: str | None = Field(default=None, max_length=255)
+
+
+class ChatMessageCreate(BaseModel):
+    content: str = Field(min_length=1, max_length=8000)
+    client_message_id: str | None = Field(default=None, max_length=120)

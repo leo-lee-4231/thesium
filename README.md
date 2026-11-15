@@ -13,7 +13,8 @@ An auditable, self-hosted personal investment agent: it remembers what you actua
 - 围绕 **Investment Product**（首版：BTC 现货 + USDT 永续）持续跟踪行情与持仓；
 - 用 **Investment Thesis** 版本化保存你的投资目标、观点、目标价与约束；
 - 定时调用你配置的 OpenAI 兼容模型，输出**结构化、可追溯**的分析与建议；
-- 支持 **Web 对话**，并可延伸到 **飞书机器人**，外出时也能问一句「我的论点还成立吗」；
+- 只把重要变化发邮件：类别跃迁、HIGH/URGENT、论点冲突、风险预算突破；普通 WAIT/HOLD 不打扰；
+- 支持 **Web 只读对话**，可以问价格、趋势、论点一致性、情景与情绪支持；飞书渠道 v1.1 暂缓；
 - 所有建议都绑定当时的 Thesis 版本、持仓快照和行情时间戳，事后可以回放。
 
 ## 它不是什么
@@ -79,9 +80,37 @@ make up
 # http://127.0.0.1:8080
 ```
 
-当前已接通 OKX 现货 + SWAP 行情、产品创建、现货/永续持仓、Thesis 编辑器；产品详情在 http://127.0.0.1:5173/products/btc。下一步 P4：Agent Runtime 与定时分析。
+### 本地开发（当前推荐）
 
-OKX 在当前网络需要代理时，启动 API 前设置 `HTTPS_PROXY`（例如 `HTTPS_PROXY=http://127.0.0.1:7897 make dev-api`）。
+只让 Postgres 跑在 Docker 里，API/Worker/Web 在本机运行：
+
+```bash
+# 1) 启动 Postgres（已存在则跳过）
+docker compose -f deploy/docker-compose.yml --env-file .env up -d postgres
+
+# 2) 迁移 + seed
+cd backend && python -m alembic upgrade head && python -m app.scripts.seed && cd ..
+
+# 3) API（OKX 需要代理时）
+cd backend
+HTTPS_PROXY=http://127.0.0.1:7897 HTTP_PROXY=http://127.0.0.1:7897 \
+  NO_PROXY=127.0.0.1,localhost python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+
+# 4) Worker + 调度器（另一个终端）
+cd backend
+HTTPS_PROXY=http://127.0.0.1:7897 HTTP_PROXY=http://127.0.0.1:7897 \
+  NO_PROXY=127.0.0.1,localhost python -m app.workers.main
+
+# 5) Web（另一个终端）
+nvm use
+cd frontend && npm run dev -- --host 127.0.0.1
+```
+
+打开 http://127.0.0.1:5173/products/btc 。产品页包含行情、持仓、Decision、通知记录与 Thesis 入口；顶部「对话」进入只读聊天。
+
+> Worker 会按产品的 `monitor_interval_minutes` 自动排队分析。没有配置 LLM 时调度器会保持安静；配置后下一轮自动开始。重复 tick 由 `jobs` 表唯一键与 `FOR UPDATE SKIP LOCKED` 防重。
+
+OKX 在当前网络需要代理时，API 与 Worker 启动前都要设置 `HTTPS_PROXY`（例如 `HTTPS_PROXY=http://127.0.0.1:7897`）。
 
 AI 润色/整理需要 OpenAI 兼容模型。打开 http://127.0.0.1:5173/settings 配置：
 
@@ -98,6 +127,31 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 ```
 
 环境变量 `THESIUM_LLM_BASE_URL/MODEL/API_KEY` 仍可作为数据库未配置时的回退；`GET /api/v1/settings/llm` 可查看当前来源与状态。未配置时手动编辑 Thesis 不受影响，AI 按钮会提示去 Settings。
+
+### 邮件与通知
+
+在 http://127.0.0.1:5173/settings 的「邮件通知」里配置 SMTP：
+
+- Host / Port / Username / Password
+- From address（发件人）与 To address（收件人，留空则用发件人）
+- STARTTLS（常用 587）或 SSL（常用 465）
+
+点「发送测试邮件」会使用当前表单值发送，不写库；保存后 `verified_at` 在测试成功时记录。密码用 Fernet 加密存储，前端不回显。通知偏好也在同一页：开关决策/风险/邮件、免打扰时段、每日上限与冷却时间。
+
+通知由程序裁决，模型只建议：
+
+- 普通 WAIT / HOLD：不发；
+- HOLD→SELL 等类别跃迁、`priority=HIGH/URGENT`、Thesis 转 `CONFLICTING`、风险预算突破：进入通知；
+- 免打扰、4 小时冷却、每日上限、完全相同结论：落 `SKIPPED` 并记录原因；
+- 邮件失败按 1/5/30 分钟重试 3 次，Web 通知中心可见并可手动重试。
+
+### 只读对话
+
+产品页顶部「对话」进入 Web 聊天。回答会带来源与时间戳，底部可打开「Run 详情」查看当时的 Thesis 版本、持仓/行情快照与模型。对话没有写工具：
+
+- 要求改 Thesis / 记成交 / 下单 → 明确拒绝并指路；
+- 模型若误称「已帮你改」，服务端后置检查会追加只读更正；
+- 同一会话同一时间只跑一轮；断线后已生成部分以 `PARTIAL` 落库，可用 `after_seq` 补齐。
 
 > Docker Hub 不可达时，在 `.env` 里把 `PYTHON_IMAGE` / `NODE_IMAGE` / `NGINX_IMAGE` / `POSTGRES_IMAGE` 指到可用镜像（示例见 `.env.example`），无需改 Dockerfile。
 
@@ -119,7 +173,7 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 
 ## 状态
 
-**P4 第一块已完成。** 手动「立即分析」、Agent Run/Decision 持久化、决策面板已跑通真实 LLM 分析；下一步 P4 剩余项：定时调度与邮件通知。Thesis、行情、现货/永续持仓均已接通；v1.0 还包括 Web 只读对话；飞书 v1.1。
+**P0–P5 已完成。** 行情、现货/永续持仓、Thesis 版本与 AI 润色、定时分析、Decision、通知策略与邮件、Web 只读对话、Run 回放均已接通。P6 在收尾：首页当前产品概览、通知中心、Run 详情已加；下一步是验收场景、移动端细节和文档。飞书（v1.1）按当前决定暂缓。
 
 ## 许可证
 

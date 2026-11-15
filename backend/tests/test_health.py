@@ -28,5 +28,5 @@ def test_meta() -> None:
 
     assert response.status_code == 200
     body = response.json()
-    assert body["phase"] == "P0"
+    assert body["phase"] == "P6"
     assert "health" in body["capabilities"]

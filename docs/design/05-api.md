@@ -92,44 +92,57 @@ v1 单租户、无登录，但 API 仍必须防止被公网随意访问：
 
 ## 5. 设置与 LLM Provider
 
-### 5.1 用户设置
+### 5.1 通知偏好
 
 ```http
-GET /api/v1/settings
+GET /api/v1/settings/notifications
+PUT /api/v1/settings/notifications
 ```
 
 ```json
 {
-  "user": {
-    "id": "uuid",
-    "email": "me@example.com",
-    "display_name": "Leo",
-    "timezone": "Asia/Shanghai"
-  },
-  "notification_preferences": {
-    "decision_alert_enabled": true,
-    "risk_alert_enabled": true,
-    "daily_summary_enabled": false,
-    "quiet_hours": {"start": "23:00", "end": "08:00"},
-    "email_verified_at": "2026-11-14T10:00:00Z"
-  }
+  "decision_alert_enabled": true,
+  "risk_alert_enabled": true,
+  "email_enabled": true,
+  "daily_summary_enabled": false,
+  "quiet_hours_enabled": true,
+  "quiet_hours_start": "23:00",
+  "quiet_hours_end": "08:00",
+  "daily_email_limit": 4,
+  "cooldown_minutes": 240,
+  "feishu_push_enabled": false
 }
 ```
 
-```http
-PATCH /api/v1/settings
-{ "display_name": "Leo", "timezone": "Asia/Shanghai" }
+免打扰按 Stream 时区解释；`URGENT` 可绕过免打扰与每日上限。偏好只影响是否打扰，不影响 Decision 落库与 Web 时间线。
+
+### 5.2 邮件（SMTP）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/settings/email` | 当前 SMTP 状态；不回显密码 |
+| PUT | `/settings/email` | 保存 host/port/from/to/username/密码/TLS |
+| POST | `/settings/email/test` | 发送测试邮件；可带未保存的表单值，测试不写库 |
+
+```json
+{
+  "host": "smtp.example.com",
+  "port": 587,
+  "from_address": "thesium@example.com",
+  "to_address": "me@example.com",
+  "from_name": "Thesium",
+  "username": "thesium@example.com",
+  "password": "只写入，不回显",
+  "clear_password": false,
+  "use_tls": true,
+  "use_ssl": false
+}
 ```
 
-### 5.2 邮箱验证
-
-```http
-POST /api/v1/settings/email/test
-{ "email": "me@example.com" }
-→ 202 { "status": "SENT" }
-```
-
-发送测试邮件；成功回调/手动确认后写 `email_verified_at`。v1 单用户，不做验证链接的复杂流程，但必须证明 SMTP 可用。
+- 密码使用 Fernet 加密存库；`has_password` 只表示是否存在，不返回内容。
+- `use_tls`（STARTTLS）与 `use_ssl`（SMTPS）互斥。
+- 测试成功只对已保存配置写 `verified_at`；未保存的表单测试不会写库。
+- 通知邮件发送到 `to_address`，为空时回退到 `from_address`。
 
 ### 5.3 LLM Provider
 
@@ -676,63 +689,63 @@ POST /api/v1/risk/stop-loss/preview
 | GET | `/decisions/{id}` | 单条详情 |
 | GET | `/agent-runs/{id}` | Run 详情（版本、工具、usage） |
 | GET | `/streams/{id}/agent-runs` | Run 列表（可按 task_type 过滤） |
-| POST | `/streams/{id}/analyze` | 按需触发一次监控分析 |
+| POST | `/streams/{id}/analyze` | 按需触发一次监控分析（同步返回 Run + Decision） |
 
-`POST /analyze` 返回 `202`：
+`POST /analyze` 成功后返回 `200`：
 
 ```json
-{"job_id": "uuid", "status": "QUEUED"}
+{
+  "run": {"id": "uuid", "status": "SUCCEEDED", "model": "deepseek-chat", "latency_ms": 18230},
+  "decision": {"id": "uuid", "decision": "WAIT", "priority": "NORMAL"}
+}
 ```
 
-前端轮询 `GET /agent-runs?job_id=` 或 `GET /jobs/{id}`（若暴露）。
-
----
+- 定时分析由 Worker 的调度器入队，使用 `jobs` 表与 `FOR UPDATE SKIP LOCKED`；重复 tick 不会产生重复 Run。
+- Run 详情固定 Thesis 版本、现货/永续快照、行情快照、模型与工具来源，可回放。
+- Run 失败时只写 `FAILED` Run，不写 Decision，也不通知。
 
 ## 11. 对话
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/streams/{id}/conversations` | 会话列表 |
-| POST | `/streams/{id}/conversations` | 创建 Web 会话（若已存在 OPEN 则返回） |
-| GET | `/conversations/{id}` | 会话详情 |
-| GET | `/conversations/{id}/messages?before_seq=&limit=50` | 消息历史 |
-| POST | `/conversations/{id}/messages` | 发送消息；SSE 流式响应 |
-| POST | `/conversations/{id}/archive` | 归档 |
+| GET | `/streams/{id}/conversations` | 会话列表（含消息数与最后一条） |
+| POST | `/streams/{id}/conversations` | 创建新会话 |
+| GET | `/conversations/{id}/messages?after_seq=&limit=` | 消息历史，可用于断线补齐 |
+| POST | `/conversations/{id}/messages` | 发送消息，返回完整助手消息（脚本/测试） |
+| POST | `/conversations/{id}/messages/stream` | 发送消息，SSE 流式返回（Web 使用） |
 
 ### 11.1 发送消息（SSE）
 
 ```http
-POST /api/v1/conversations/{id}/messages
+POST /api/v1/conversations/{id}/messages/stream
 Accept: text/event-stream
 Idempotency-Key: 9f2...
 Content-Type: application/json
 
-{ "content": "BTC 现在什么价？我的论点还成立吗？" }
+{ "content": "BTC 现在什么价？我的论点还成立吗？", "client_message_id": "9f2..." }
 ```
 
 响应 `200 Content-Type: text/event-stream`：
 
 ```text
 event: meta
-data: {"conversation_id":"...","user_message_id":"..."}
+data: {"conversation_id":"...","user_message_id":"...","agent_run_id":"...","sources":[...]}
 
 event: status
-data: {"stage":"collecting_context"}
-
-event: tool
-data: {"name":"get_asset_overview","status":"ok","as_of":"2026-11-14T15:00:00Z"}
+data: {"message":"读取 Thesis、行情与持仓…","stage":"context"}
 
 event: delta
-data: {"text":"当前 BTC 报价 91,240 USDT（15:00 UTC）"}
+data: {"text":"当前 BTC 报价 65,294 USDT"}
 
 event: done
-data: {"message_id":"...","agent_run_id":"...","usage":{"input_tokens":3120,"output_tokens":410}}
+data: {"message_id":"...","agent_run_id":"...","content":"...","sources":[...],"guard_triggered":false}
 ```
 
-- 客户端断开后，服务端继续完成并落库；重连用 `GET messages?after_seq=` 补齐。
-- 若 `Accept` 不是 SSE，返回 `200` JSON 完整消息（便于脚本/测试）。
-- 首 token 超时 30s，整轮 90s；超时发 `error` 并落库错误消息。
-- 只读：响应中不会出现「已修改」；若模型输出违规，由校验替换。
+- `Idempotency-Key` 与 `client_message_id` 二选一；重复请求重放已完成的助手消息，不再调用模型。
+- 同一会话同一时间只允许一轮生成；并发请求返回 `CONVERSATION_BUSY`（409）。
+- 客户端断开时服务端停止生成；已产生的内容以 `status=PARTIAL` 落库，Run 标记 `CLIENT_DISCONNECTED`；重连用 `after_seq` 补齐。
+- 只读：无写工具。输出后置检查若发现「已帮你改/已下单」等表述，会追加只读更正并记录 `guard_triggered`。
+- 上下文固定 Thesis 版本、持仓、行情时间戳；来源与 `as_of` 写入消息与 Run。
 
 ### 11.2 消息结构
 
@@ -742,30 +755,30 @@ data: {"message_id":"...","agent_run_id":"...","usage":{"input_tokens":3120,"out
   "seq": 12,
   "role": "ASSISTANT",
   "content": "……",
+  "status": "COMPLETE",
   "created_at": "2026-11-14T15:01:00Z",
   "agent_run_id": "uuid",
-  "provenance": {
-    "thesis_version": 3,
-    "market_as_of": "2026-11-14T15:00:00Z",
-    "tools": ["get_asset_overview", "get_investment_thesis"],
-    "staleness": "FRESH"
-  }
+  "sources": [
+    {"tool": "get_asset_overview", "label": "OKX 现货行情", "as_of": "2026-11-14T15:00:00Z", "staleness": "FRESH"}
+  ]
 }
 ```
 
-`provenance` 由服务端生成，不由模型输出。
-
----
+`sources` 由服务端生成，不由模型输出；点击「Run 详情」可查看完整输入上下文与工具来源。
 
 ## 12. 通知
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/streams/{id}/notifications` | 通知记录 |
-| GET | `/notifications/{id}` | 详情 + deliveries |
-| POST | `/notifications/{id}/retry` | 手动重试（仅 FAILED） |
+| GET | `/notifications?stream_id=&limit=` | 全部或按产品筛选 |
+| GET | `/streams/{id}/notifications` | 产品通知记录 |
+| POST | `/notifications/{id}/retry` | 手动重试失败/跳过的邮件投递 |
 
----
+通知记录包含 `status`（PENDING/SENT/RETRYING/FAILED/SKIPPED）、`decision`、`alignment`、`priority`、`title`、`body_text`、`reason`、`triggered_rules` 与各渠道 `deliveries`。
+
+- 程序策略触发才落记录；普通 WAIT/HOLD 没有触发时不产生通知行，避免时间线噪声。
+- 被免打扰/冷却/每日上限抑制时落 `SKIPPED` 并写明原因，便于解释「为什么没发」。
+- 邮件失败按 1/5/30 分钟重试，最多 3 次；仍失败则 `FAILED`，Web 可见并支持手动重试。
 
 ## 13. 渠道（v1.1）
 

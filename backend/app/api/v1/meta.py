@@ -13,7 +13,7 @@ async def get_meta() -> MetaOut:
         name=settings.app_name,
         version=settings.version,
         environment=settings.environment,
-        phase="P0",
+        phase="P6",
         capabilities=[
             "health",
             "assets:list",
@@ -24,5 +24,9 @@ async def get_meta() -> MetaOut:
             "thesis:versions",
             "agent:analyze",
             "agent:decisions",
+            "agent:scheduler",
+            "notifications:email",
+            "notifications:policy",
+            "chat:read-only",
         ],
     )

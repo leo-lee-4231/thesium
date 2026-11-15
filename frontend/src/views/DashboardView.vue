@@ -1,7 +1,17 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 
-import { api, type Asset, type Health, type Meta, type Stream } from '@/api/client'
+import {
+  api,
+  type Asset,
+  type Decision,
+  type Health,
+  type MarketOverview,
+  type Meta,
+  type Portfolio,
+  type Stream,
+  type ThesisVersion,
+} from '@/api/client'
 
 const health = ref<Health | null>(null)
 const meta = ref<Meta | null>(null)
@@ -9,11 +19,66 @@ const assets = ref<Asset[]>([])
 const streams = ref<Stream[]>([])
 const error = ref<string | null>(null)
 const loading = ref(true)
+const activeOverview = ref<MarketOverview | null>(null)
+const activePortfolio = ref<Portfolio | null>(null)
+const activeThesis = ref<ThesisVersion | null>(null)
+const activeDecision = ref<Decision | null>(null)
+const activeError = ref<string | null>(null)
+const activeLoading = ref(false)
 
 const apiOnline = computed(() => health.value?.status === 'ok')
 
+const activeStream = computed(() => streams.value.find((stream) => stream.status === 'ACTIVE'))
+
 function streamFor(symbol: string): Stream | undefined {
   return streams.value.find((stream) => stream.asset_symbol === symbol)
+}
+
+function fmt(value: string | null | undefined, digits = 2): string {
+  if (value === null || value === undefined || value === '') return '—'
+  const number = Number(value)
+  if (!Number.isFinite(number)) return value
+  return number.toLocaleString('en-US', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  })
+}
+
+function fmtPct(value: string | null | undefined): string {
+  if (value === null || value === undefined || value === '') return '—'
+  const number = Number(value)
+  if (!Number.isFinite(number)) return '—'
+  return `${number > 0 ? '+' : ''}${number.toFixed(2)}%`
+}
+
+function fmtTime(value: string | null | undefined): string {
+  if (!value) return '—'
+  return new Date(value).toLocaleString('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    hour12: false,
+  })
+}
+
+async function loadActive(): Promise<void> {
+  if (!activeStream.value) return
+  activeLoading.value = true
+  activeError.value = null
+  const id = activeStream.value.id
+  const symbol = activeStream.value.asset_symbol
+  const [overviewResult, portfolioResult, thesisResult, decisionsResult] = await Promise.allSettled([
+    api.marketOverview(symbol),
+    api.portfolio(id),
+    api.thesis(id),
+    api.decisions(id),
+  ])
+  if (overviewResult.status === 'fulfilled') activeOverview.value = overviewResult.value
+  if (portfolioResult.status === 'fulfilled') activePortfolio.value = portfolioResult.value
+  if (thesisResult.status === 'fulfilled') activeThesis.value = thesisResult.value
+  if (decisionsResult.status === 'fulfilled') activeDecision.value = decisionsResult.value[0] ?? null
+  if (overviewResult.status === 'rejected') {
+    activeError.value = '行情暂不可用；其他信息仍可查看。'
+  }
+  activeLoading.value = false
 }
 
 function instrumentLabel(asset: Asset): string {
@@ -45,6 +110,7 @@ async function load(): Promise<void> {
     error.value = '无法连接 API。请确认后端已启动（默认 127.0.0.1:8000）。'
   }
   loading.value = false
+  await loadActive()
 }
 
 onMounted(load)
@@ -105,15 +171,74 @@ onMounted(load)
         <span class="card-kicker">Phase</span>
         <span class="phase">{{ meta?.phase ?? 'P0' }}</span>
       </header>
-      <h2>骨架已就位</h2>
+      <h2>闭环已跑通</h2>
       <ul class="checklist">
-        <li>FastAPI + 健康检查</li>
-        <li>Postgres + Alembic 初始迁移</li>
-        <li>Worker 进程骨架</li>
-        <li>Vue 3 + Vite 壳</li>
-        <li>Docker Compose 一键启动</li>
+        <li>OKX 现货 + SWAP 观察</li>
+        <li>现货/永续持仓与风险快照</li>
+        <li>Thesis 版本化 + AI 润色</li>
+        <li>定时分析 + 通知策略 + 邮件</li>
+        <li>Web 只读对话 + Run 回放</li>
       </ul>
     </article>
+  </section>
+
+  <section v-if="activeStream" class="panel dashboard-live">
+    <div class="panel-head">
+      <div>
+        <p class="eyebrow">Live overview</p>
+        <h2>{{ activeStream.asset_symbol }} · {{ activeStream.name }}</h2>
+      </div>
+      <div class="live-links">
+        <RouterLink class="ghost-button small" :to="`/products/${activeStream.asset_symbol.toLowerCase()}`">
+          概览
+        </RouterLink>
+        <RouterLink class="ghost-button small" :to="`/products/${activeStream.asset_symbol.toLowerCase()}/chat`">
+          对话
+        </RouterLink>
+        <RouterLink class="ghost-button small" :to="`/products/${activeStream.asset_symbol.toLowerCase()}/thesis`">
+          Thesis
+        </RouterLink>
+      </div>
+    </div>
+
+    <p v-if="activeLoading" class="muted">加载当前产品…</p>
+    <p v-if="activeError" class="error">{{ activeError }}</p>
+
+    <div v-if="activeOverview" class="live-grid">
+      <div class="live-card">
+        <span>现货价格</span>
+        <strong>{{ fmt(activeOverview.quote.price) }}</strong>
+        <small>
+          24h {{ fmtPct(activeOverview.quote.change_24h_pct) }} ·
+          {{ activeOverview.quote.staleness }} · {{ fmtTime(activeOverview.quote.market_time) }}
+        </small>
+      </div>
+      <div class="live-card">
+        <span>最新建议</span>
+        <strong>{{ activeDecision?.decision ?? '—' }}</strong>
+        <small>
+          {{ activeDecision ? `${activeDecision.priority} · ${fmtTime(activeDecision.created_at)}` : '还没有分析' }}
+        </small>
+      </div>
+      <div class="live-card">
+        <span>ACTIVE Thesis</span>
+        <strong>{{ activeThesis ? `v${activeThesis.version}` : '未写' }}</strong>
+        <small>{{ activeThesis ? activeThesis.change_class : '—' }} · 用户确认后生效</small>
+      </div>
+      <div class="live-card">
+        <span>持仓</span>
+        <strong>{{ activePortfolio ? fmt(activePortfolio.spot.state.quantity, 4) : '—' }}</strong>
+        <small>
+          现货 {{ activeStream.asset_symbol }} · 永续
+          {{ activePortfolio?.derivative ? activePortfolio.derivative.state.side : '无' }}
+        </small>
+      </div>
+    </div>
+
+    <p v-if="activeDecision" class="live-summary">{{ activeDecision.summary }}</p>
+    <p class="form-note">
+      数字来自本地数据库与 OKX 公共行情；建议绑定当时的 Thesis、持仓快照与行情时间戳，可在产品页回放。
+    </p>
   </section>
 
   <section class="products">
@@ -184,7 +309,8 @@ onMounted(load)
       </div>
     </div>
     <p class="panel-note">
-      下一步 P1：接入 OKX 公共行情（现货 + 合约观察），回填 K 线并计算基础指标。
+      通知只发重要变化：类别跃迁、HIGH/URGENT、论点冲突、风险预算突破。普通 WAIT/HOLD 不打扰；
+      所有建议都可在 Web 里回放当时的 Thesis、持仓与行情。
     </p>
   </section>
 </template>

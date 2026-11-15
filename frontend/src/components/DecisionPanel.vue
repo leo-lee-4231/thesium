@@ -45,6 +45,7 @@ async function analyze(): Promise<void> {
     const result = await api.analyze(props.streamId)
     decisions.value = [result.decision, ...decisions.value]
     notice.value = `分析完成 · ${result.run.latency_ms ?? '—'} ms · ${result.run.model ?? 'model'}`
+    window.dispatchEvent(new CustomEvent('thesium:notifications-changed'))
   } catch (caught) {
     error.value = caught instanceof Error ? caught.message : '分析失败'
   } finally {
@@ -89,6 +90,9 @@ onMounted(() => {
         <span class="decision-badge" :class="decisionClass(latest.decision)">{{ latest.decision }}</span>
         <span class="priority-chip">{{ latest.priority }}</span>
         <span class="mono">confidence {{ Number(latest.confidence).toFixed(2) }}（非胜率）</span>
+        <RouterLink class="mono inline-link" :to="`/runs/${latest.agent_run_id}`">
+          Run 详情 →
+        </RouterLink>
         <span class="mono decision-time">{{ fmtDate(latest.created_at) }}</span>
       </header>
 
