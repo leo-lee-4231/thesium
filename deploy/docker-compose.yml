@@ -47,13 +47,13 @@ services:
       THESIUM_WEB_BASE_URL: ${THESIUM_WEB_BASE_URL:-http://127.0.0.1:8080}
       THESIUM_SCHEDULER_ENABLED: ${THESIUM_SCHEDULER_ENABLED:-true}
       THESIUM_WORKER_POLL_SECONDS: ${THESIUM_WORKER_POLL_SECONDS:-15}
-      THESIUM_MARKET_PROXY: ${THESIUM_MARKET_PROXY:-}
+      THESIUM_MARKET_PROXY: ${THESIUM_MARKET_PROXY_DOCKER:-socks5h://host.docker.internal:7897}
       THESIUM_LLM_BASE_URL: ${THESIUM_LLM_BASE_URL:-}
       THESIUM_LLM_MODEL: ${THESIUM_LLM_MODEL:-}
       THESIUM_LLM_API_KEY: ${THESIUM_LLM_API_KEY:-}
-      HTTP_PROXY: ${HTTP_PROXY:-}
-      HTTPS_PROXY: ${HTTPS_PROXY:-}
-      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,postgres}
+      HTTP_PROXY: ${HTTP_PROXY_DOCKER:-http://host.docker.internal:7897}
+      HTTPS_PROXY: ${HTTPS_PROXY_DOCKER:-http://host.docker.internal:7897}
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,postgres,api,web}
     ports:
       - "127.0.0.1:8000:8000"
     restart: unless-stopped
@@ -91,13 +91,13 @@ services:
       THESIUM_WEB_BASE_URL: ${THESIUM_WEB_BASE_URL:-http://127.0.0.1:8080}
       THESIUM_SCHEDULER_ENABLED: ${THESIUM_SCHEDULER_ENABLED:-true}
       THESIUM_WORKER_POLL_SECONDS: ${THESIUM_WORKER_POLL_SECONDS:-15}
-      THESIUM_MARKET_PROXY: ${THESIUM_MARKET_PROXY:-}
+      THESIUM_MARKET_PROXY: ${THESIUM_MARKET_PROXY_DOCKER:-socks5h://host.docker.internal:7897}
       THESIUM_LLM_BASE_URL: ${THESIUM_LLM_BASE_URL:-}
       THESIUM_LLM_MODEL: ${THESIUM_LLM_MODEL:-}
       THESIUM_LLM_API_KEY: ${THESIUM_LLM_API_KEY:-}
-      HTTP_PROXY: ${HTTP_PROXY:-}
-      HTTPS_PROXY: ${HTTPS_PROXY:-}
-      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,postgres}
+      HTTP_PROXY: ${HTTP_PROXY_DOCKER:-http://host.docker.internal:7897}
+      HTTPS_PROXY: ${HTTPS_PROXY_DOCKER:-http://host.docker.internal:7897}
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,postgres,api,web}
     depends_on:
       api:
         condition: service_healthy
