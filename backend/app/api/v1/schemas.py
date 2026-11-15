@@ -247,3 +247,8 @@ class ConversationCreate(BaseModel):
 class ChatMessageCreate(BaseModel):
     content: str = Field(min_length=1, max_length=8000)
     client_message_id: str | None = Field(default=None, max_length=120)
+
+
+class NetworkSettingsUpdate(BaseModel):
+    market_proxy_enabled: bool = False
+    market_proxy_url: str | None = Field(default=None, max_length=500)

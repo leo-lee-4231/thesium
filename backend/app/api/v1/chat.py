@@ -1,13 +1,16 @@
 import json
 from collections.abc import AsyncIterator
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.market import get_market_service
 from app.api.v1.schemas import ChatMessageCreate, ConversationCreate
 from app.application.conversation_service import ConversationError, ConversationService
+from app.application.market_service import MarketService
 from app.db.session import get_session
 
 router = APIRouter(tags=["chat"])
@@ -76,11 +79,12 @@ async def list_messages(
 async def send_message(
     conversation_id: UUID,
     payload: ChatMessageCreate,
+    market: Annotated[MarketService, Depends(get_market_service)],
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, object]:
     try:
-        return await ConversationService(session).send(
+        return await ConversationService(session, market).send(
             conversation_id,
             payload.content,
             client_message_id=payload.client_message_id or idempotency_key,
@@ -93,10 +97,11 @@ async def send_message(
 async def stream_message(
     conversation_id: UUID,
     payload: ChatMessageCreate,
+    market: Annotated[MarketService, Depends(get_market_service)],
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     session: AsyncSession = Depends(get_session),
 ) -> StreamingResponse:
-    service = ConversationService(session)
+    service = ConversationService(session, market)
 
     async def events() -> AsyncIterator[str]:
         try:

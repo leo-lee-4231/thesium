@@ -534,6 +534,28 @@ export type ChatEvent =
   | { event: 'done'; data: ChatDone }
   | { event: 'error'; data: { code: string; message: string; status_code?: number } }
 
+
+export interface NetworkStatus {
+  market_proxy_enabled: boolean
+  market_proxy_url: string
+  source: 'database' | 'environment' | 'none'
+  effective_proxy: string | null
+  env_fallback: string | null
+  default_url: string
+}
+
+export interface OkxCheckResult {
+  ok: boolean
+  latency_ms: number
+  error_type?: string
+  error?: string
+  price?: string
+  market_time?: string
+  staleness?: string
+  market_proxy_configured: boolean
+  proxy_source?: string
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
@@ -571,6 +593,14 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(payload),
     }),
+  networkStatus: () => request<NetworkStatus>('/api/v1/settings/network'),
+  saveNetworkSettings: (payload: { market_proxy_enabled: boolean; market_proxy_url?: string }) =>
+    request<NetworkStatus>('/api/v1/settings/network', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  okxCheck: (symbol = 'BTC-USDT') =>
+    request<OkxCheckResult>(`/api/v1/assets/${encodeURIComponent(symbol)}/okx-check`),
   testEmail: (payload?: Partial<EmailConfigUpdate> & { recipient?: string }) =>
     request<EmailTestResult>('/api/v1/settings/email/test', {
       method: 'POST',

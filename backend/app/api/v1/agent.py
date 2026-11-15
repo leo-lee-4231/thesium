@@ -1,3 +1,4 @@
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -5,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.runtime import AgentError, AgentRuntime
-from app.api.v1.market import get_provider
+from app.api.v1.market import get_market_service
 from app.application.market_service import MarketService
 from app.db.models import AgentRun, InvestmentDecision
 from app.db.session import get_session
@@ -76,9 +77,11 @@ def _error(exc: AgentError) -> HTTPException:
 
 @router.post("/streams/{stream_id}/analyze")
 async def analyze(
-    stream_id: UUID, session: AsyncSession = Depends(get_session)
+    stream_id: UUID,
+    market: Annotated[MarketService, Depends(get_market_service)],
+    session: AsyncSession = Depends(get_session),
 ) -> dict[str, object]:
-    runtime = AgentRuntime(session, MarketService(session, get_provider()))
+    runtime = AgentRuntime(session, market)
     try:
         result = await runtime.run_monitor(stream_id)
     except AgentError as exc:

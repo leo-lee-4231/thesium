@@ -6,10 +6,15 @@ from app.api.v1.schemas import (
     EmailTestRequest,
     LLMConfigUpdate,
     LLMTestRequest,
+    NetworkSettingsUpdate,
     NotificationPreferencesUpdate,
 )
 from app.application.email_service import EmailSettingsError, EmailSettingsService
 from app.application.llm_provider_service import LLMProviderError, LLMProviderService
+from app.application.network_settings_service import (
+    NetworkSettingsError,
+    NetworkSettingsService,
+)
 from app.application.notification_service import NotificationService
 from app.db.session import get_session
 from app.infrastructure.llm.client import LLMNotConfigured
@@ -157,3 +162,31 @@ async def save_notification_preferences(
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+def _network_error(exc: NetworkSettingsError) -> HTTPException:
+    status = 400
+    if exc.code == "NOT_FOUND":
+        status = 404
+    return HTTPException(status_code=status, detail=f"{exc.code}: {exc.message}")
+
+
+@router.get("/network")
+async def network_status(session: AsyncSession = Depends(get_session)) -> dict[str, object]:
+    try:
+        return await NetworkSettingsService(session).status()
+    except NetworkSettingsError as exc:
+        raise _network_error(exc) from exc
+
+
+@router.put("/network")
+async def save_network_settings(
+    payload: NetworkSettingsUpdate, session: AsyncSession = Depends(get_session)
+) -> dict[str, object]:
+    try:
+        return await NetworkSettingsService(session).save(
+            enabled=payload.market_proxy_enabled,
+            url=payload.market_proxy_url,
+        )
+    except NetworkSettingsError as exc:
+        raise _network_error(exc) from exc

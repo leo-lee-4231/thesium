@@ -1,3 +1,4 @@
+from collections.abc import AsyncIterator
 from decimal import Decimal
 from typing import Annotated, Literal
 
@@ -13,6 +14,7 @@ from app.api.v1.schemas import (
     QuoteOut,
 )
 from app.application.market_service import MarketService
+from app.application.network_settings_service import NetworkSettingsService
 from app.db.session import get_session
 from app.infrastructure.market.base import (
     DerivativesOverview,
@@ -21,17 +23,19 @@ from app.infrastructure.market.base import (
     Quote,
     Timeframe,
 )
-from app.infrastructure.market.factory import get_provider
-from app.infrastructure.market.okx import OKXProvider
+from app.infrastructure.market.factory import create_provider
 
 router = APIRouter(prefix="/assets/{symbol}", tags=["market"])
 
 
-def get_market_service(
+async def get_market_service(
     session: Annotated[AsyncSession, Depends(get_session)],
-    provider: Annotated[OKXProvider, Depends(get_provider)],
-) -> MarketService:
-    return MarketService(session, provider)
+) -> AsyncIterator[MarketService]:
+    provider = await create_provider(session)
+    try:
+        yield MarketService(session, provider)
+    finally:
+        await provider.close()
 
 
 def _decimal_str(value: Decimal | None, digits: int | None = None) -> str | None:
@@ -203,19 +207,19 @@ async def get_market_overview(
     )
 
 @router.get("/okx-check")
-async def okx_check(symbol: str) -> dict[str, object]:
+async def okx_check(
+    symbol: str, session: Annotated[AsyncSession, Depends(get_session)]
+) -> dict[str, object]:
     """Small connectivity probe for the public OKX API.
 
-    Useful when the UI reports MARKET_UNAVAILABLE: it separates a broken local
-    proxy from a broader market-service failure.
+    Useful when the UI reports MARKET_UNAVAILABLE: it separates a broken proxy
+    setting from a broader market-service failure.
     """
 
     import time
 
-    from app.core.config import get_settings
-
-    settings = get_settings()
-    provider = OKXProvider(proxy=settings.market_proxy)
+    status = await NetworkSettingsService(session).status()
+    provider = await create_provider(session)
     instrument = symbol.upper()
     if "-" not in instrument:
         instrument = f"{instrument}-USDT"
@@ -228,7 +232,8 @@ async def okx_check(symbol: str) -> dict[str, object]:
             "latency_ms": int((time.monotonic() - started) * 1000),
             "error_type": type(exc).__name__,
             "error": str(exc),
-            "market_proxy_configured": bool(settings.market_proxy),
+            "market_proxy_configured": status["effective_proxy"] is not None,
+            "proxy_source": status["source"],
         }
     finally:
         await provider.close()
@@ -238,5 +243,6 @@ async def okx_check(symbol: str) -> dict[str, object]:
         "price": str(quote.price),
         "market_time": quote.market_time,
         "staleness": quote.staleness,
-        "market_proxy_configured": bool(settings.market_proxy),
+        "market_proxy_configured": status["effective_proxy"] is not None,
+        "proxy_source": status["source"],
     }

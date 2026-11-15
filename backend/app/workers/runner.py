@@ -10,7 +10,7 @@ from app.application.market_service import MarketService
 from app.application.notification_service import NotificationService
 from app.db.models import Asset, InvestmentStream, Job
 from app.db.session import SessionLocal
-from app.infrastructure.market.base import MarketDataProvider
+from app.infrastructure.market.factory import create_provider
 
 logger = logging.getLogger(__name__)
 
@@ -18,9 +18,6 @@ RETRY_BACKOFF_MINUTES = (1, 5, 30)
 
 
 class JobRunner:
-    def __init__(self, provider: MarketDataProvider) -> None:
-        self._provider = provider
-
     async def run(self, job_id: UUID) -> None:
         async with SessionLocal() as session:
             job = await session.get(Job, job_id)
@@ -63,16 +60,20 @@ class JobRunner:
         stream.last_monitored_at = datetime.now(UTC)
         await session.commit()
 
-        runtime = AgentRuntime(session, MarketService(session, self._provider))
-        result = await runtime.run_monitor(stream.id)
-        asset = await session.get(Asset, stream.asset_id)
-        if asset is None:
-            raise RuntimeError("asset not found")
-        await NotificationService(session).evaluate_and_create(
-            stream=stream,
-            asset=asset,
-            decision=result["decision"],
-        )
+        provider = await create_provider(session)
+        try:
+            runtime = AgentRuntime(session, MarketService(session, provider))
+            result = await runtime.run_monitor(stream.id)
+            asset = await session.get(Asset, stream.asset_id)
+            if asset is None:
+                raise RuntimeError("asset not found")
+            await NotificationService(session).evaluate_and_create(
+                stream=stream,
+                asset=asset,
+                decision=result["decision"],
+            )
+        finally:
+            await provider.close()
 
     async def _run_notification(self, session, job: Job) -> datetime | None:
         notification_id = (job.payload or {}).get("notification_id")

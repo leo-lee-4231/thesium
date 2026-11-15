@@ -130,14 +130,18 @@ curl -x http://127.0.0.1:7897 -sS -m 10 -o /dev/null \
 
 当前网络下 OKX 直连会超时；必须走代理。代理短暂抖动时，API 会重试 3 次，仍失败就返回 `MARKET_UNAVAILABLE`，恢复后点「立即分析」重试即可。
 
-如果 HTTP 代理到 OKX 不稳定，可以让行情单独走 SOCKS5，并把 DNS 交给代理：
+如果 HTTP 代理到 OKX 不稳定，可以让行情单独走 SOCKS5，并把 DNS 交给代理。
+
+**推荐在 Settings → 行情代理直接配置**：打开/关闭开关、填写 URL、保存后立即对 API 请求和 Worker 下一次任务生效，无需重启。数据库设置优先于环境变量；关闭开关会完全绕过代理。
+
+环境变量只作为数据库未配置时的回退：
 
 ```bash
 # backend/.env 或项目根 .env
 THESIUM_MARKET_PROXY=socks5h://127.0.0.1:7897
 ```
 
-`httpx[socks]` 已加入依赖；改完 `.env` 后重启 API 和 Worker。LLM 仍使用 `HTTPS_PROXY`，两者互不影响。
+`httpx[socks]` 已加入依赖。LLM 仍使用 `HTTPS_PROXY`，两者互不影响。
 
 连通性自检：
 

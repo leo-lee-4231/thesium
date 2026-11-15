@@ -32,7 +32,6 @@ from app.db.models import (
     User,
 )
 from app.infrastructure.llm.client import LLMClient, LLMError, LLMNotConfigured
-from app.infrastructure.market.factory import get_provider
 
 logger = logging.getLogger(__name__)
 
@@ -75,11 +74,9 @@ def _message_dict(message: ConversationMessage) -> dict[str, object]:
 
 
 class ConversationService:
-    def __init__(
-        self, session: AsyncSession, market: MarketService | None = None
-    ) -> None:
+    def __init__(self, session: AsyncSession, market: MarketService | None = None) -> None:
         self._session = session
-        self._market = market or MarketService(session, get_provider())
+        self._market = market
 
     async def _user(self) -> User:
         user = await self._session.scalar(select(User).where(User.email == LOCAL_USER_EMAIL))
@@ -344,6 +341,17 @@ class ConversationService:
         conversation.updated_at = datetime.now(UTC)
         await self._session.commit()
         await self._session.refresh(user_message)
+
+        if self._market is None:
+            yield _event(
+                "error",
+                {
+                    "code": "MARKET_NOT_AVAILABLE",
+                    "message": "行情服务未注入",
+                    "status_code": 503,
+                },
+            )
+            return
 
         yield _event(
             "status", {"message": "读取 Thesis、行情与持仓…", "stage": "context"}

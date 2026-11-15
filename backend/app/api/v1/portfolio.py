@@ -1,11 +1,12 @@
 from decimal import Decimal
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.market import get_provider
+from app.api.v1.market import get_market_service
 from app.api.v1.schemas import (
     DerivativeEventCreate,
     DerivativeSimulate,
@@ -47,7 +48,7 @@ def _decimal(value: Decimal | None) -> str | None:
 
 
 async def _marks(
-    session: AsyncSession, stream_id: UUID
+    session: AsyncSession, market: MarketService, stream_id: UUID
 ) -> tuple[Decimal | None, Decimal | None, list[str]]:
     stream = await session.get(InvestmentStream, stream_id)
     if stream is None:
@@ -55,7 +56,6 @@ async def _marks(
     asset = await session.get(Asset, stream.asset_id)
     if asset is None:
         return None, None, ["asset not found"]
-    market = MarketService(session, get_provider())
     spot_mark: Decimal | None = None
     perp_mark: Decimal | None = None
     warnings: list[str] = []
@@ -73,9 +73,12 @@ async def _marks(
 
 
 async def _portfolio(
-    session: AsyncSession, stream_id: UUID, service: PortfolioService
+    session: AsyncSession,
+    stream_id: UUID,
+    service: PortfolioService,
+    market: MarketService,
 ) -> dict[str, object]:
-    spot_mark, perp_mark, warnings = await _marks(session, stream_id)
+    spot_mark, perp_mark, warnings = await _marks(session, market, stream_id)
     return {
         "spot": await service.spot(stream_id, spot_mark),
         "derivative": await service.derivative(stream_id, perp_mark),
@@ -117,16 +120,20 @@ def _derivative_event(event: DerivativePositionEvent) -> dict[str, object]:
 
 @router.get("/portfolio")
 async def get_portfolio(
-    stream_id: UUID, session: AsyncSession = Depends(get_session)
+    stream_id: UUID,
+    market: Annotated[MarketService, Depends(get_market_service)],
+    session: AsyncSession = Depends(get_session),
 ) -> dict[str, object]:
-    return await _portfolio(session, stream_id, PortfolioService(session))
+    return await _portfolio(session, stream_id, PortfolioService(session), market)
 
 
 @router.get("/positions")
 async def get_spot_position(
-    stream_id: UUID, session: AsyncSession = Depends(get_session)
+    stream_id: UUID,
+    market: Annotated[MarketService, Depends(get_market_service)],
+    session: AsyncSession = Depends(get_session),
 ) -> dict[str, object]:
-    spot_mark, _, _ = await _marks(session, stream_id)
+    spot_mark, _, _ = await _marks(session, market, stream_id)
     return await PortfolioService(session).spot(stream_id, spot_mark)
 
 
@@ -134,6 +141,7 @@ async def get_spot_position(
 async def record_spot_event(
     stream_id: UUID,
     payload: SpotEventCreate,
+    market: Annotated[MarketService, Depends(get_market_service)],
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, object]:
     command = SpotCommand(
@@ -150,7 +158,7 @@ async def record_spot_event(
         await service.record_spot(stream_id, command)
     except PortfolioError as exc:
         raise _error(exc) from exc
-    return await _portfolio(session, stream_id, service)
+    return await _portfolio(session, stream_id, service, market)
 
 
 @router.get("/position-events")
@@ -210,9 +218,11 @@ async def simulate_spot(
 
 @router.get("/derivative-positions")
 async def get_derivative_position(
-    stream_id: UUID, session: AsyncSession = Depends(get_session)
+    stream_id: UUID,
+    market: Annotated[MarketService, Depends(get_market_service)],
+    session: AsyncSession = Depends(get_session),
 ) -> dict[str, object] | None:
-    _, perp_mark, _ = await _marks(session, stream_id)
+    _, perp_mark, _ = await _marks(session, market, stream_id)
     return await PortfolioService(session).derivative(stream_id, perp_mark)
 
 
@@ -220,9 +230,10 @@ async def get_derivative_position(
 async def record_derivative_event(
     stream_id: UUID,
     payload: DerivativeEventCreate,
+    market: Annotated[MarketService, Depends(get_market_service)],
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, object]:
-    _, perp_mark, _ = await _marks(session, stream_id)
+    _, perp_mark, _ = await _marks(session, market, stream_id)
     command = DerivativeCommand(
         kind=payload.kind,
         side=payload.side,
@@ -243,7 +254,7 @@ async def record_derivative_event(
         await service.record_derivative(stream_id, command, perp_mark)
     except PortfolioError as exc:
         raise _error(exc) from exc
-    return await _portfolio(session, stream_id, service)
+    return await _portfolio(session, stream_id, service, market)
 
 
 @router.get("/derivative-position-events")

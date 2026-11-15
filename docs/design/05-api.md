@@ -116,7 +116,26 @@ PUT /api/v1/settings/notifications
 
 免打扰按 Stream 时区解释；`URGENT` 可绕过免打扰与每日上限。偏好只影响是否打扰，不影响 Decision 落库与 Web 时间线。
 
-### 5.2 邮件（SMTP）
+### 5.2 网络代理（OKX 行情）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/settings/network` | 当前代理开关、URL、来源（database/environment/none） |
+| PUT | `/settings/network` | 保存开关与代理 URL；数据库设置优先于环境变量 |
+
+```json
+{
+  "market_proxy_enabled": true,
+  "market_proxy_url": "socks5h://127.0.0.1:7897"
+}
+```
+
+- 支持 `http://`、`https://`、`socks5://`、`socks5h://`；`socks5h` 在代理侧解析 DNS。
+- 关闭开关会**完全绕过代理**（包括 `THESIUM_MARKET_PROXY` 与 `HTTPS_PROXY`），适合确认直连是否可用。
+- 数据库无记录时回退到 `THESIUM_MARKET_PROXY`；保存后立即对 API 请求和 Worker 的下一次任务生效，无需重启。
+- `GET /assets/{symbol}/okx-check` 可在保存后验证行情连通性；失败会返回 `error_type`。
+
+### 5.3 邮件（SMTP）
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
@@ -144,7 +163,7 @@ PUT /api/v1/settings/notifications
 - 测试成功只对已保存配置写 `verified_at`；未保存的表单测试不会写库。
 - 通知邮件发送到 `to_address`，为空时回退到 `from_address`。
 
-### 5.3 LLM Provider
+### 5.4 LLM Provider
 
 v1 单租户只维护一个默认 Provider，通过设置接口读写；API Key 加密存储，只返回末 4 位。
 

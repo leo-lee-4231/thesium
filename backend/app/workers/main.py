@@ -6,7 +6,6 @@ import signal
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db.session import SessionLocal
-from app.infrastructure.market.factory import get_provider
 from app.workers.runner import JobRunner
 from app.workers.scheduler import (
     claim_jobs,
@@ -40,7 +39,7 @@ async def run() -> None:
             # Windows / restricted environments: rely on KeyboardInterrupt.
             loop.add_signal_handler(sig, stop.set)
 
-    runner = JobRunner(get_provider())
+    runner = JobRunner()
     logger.info(
         "thesium worker starting",
         extra={

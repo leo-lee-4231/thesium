@@ -5,7 +5,9 @@ import {
   api,
   type EmailStatus,
   type LLMStatus,
+  type NetworkStatus,
   type NotificationPreferences,
+  type OkxCheckResult,
 } from '@/api/client'
 
 const status = ref<LLMStatus | null>(null)
@@ -37,10 +39,26 @@ const emailError = ref<string | null>(null)
 const emailNotice = ref<string | null>(null)
 const emailTest = ref<{ ok: boolean; latency_ms?: number; error?: string; message?: string } | null>(null)
 
+const network = ref<NetworkStatus | null>(null)
+const networkEnabled = ref(false)
+const networkUrl = ref('')
+const networkSaving = ref(false)
+const networkError = ref<string | null>(null)
+const networkNotice = ref<string | null>(null)
+const probeLoading = ref(false)
+const probeResult = ref<OkxCheckResult | null>(null)
+
 const prefs = ref<NotificationPreferences | null>(null)
 const prefsSaving = ref(false)
 const prefsError = ref<string | null>(null)
 const prefsNotice = ref<string | null>(null)
+
+const networkSourceLabel = computed(() => {
+  if (!network.value) return '—'
+  if (network.value.source === 'database') return '数据库'
+  if (network.value.source === 'environment') return '环境变量回退'
+  return '未配置（默认不走代理）'
+})
 
 const llmSourceLabel = computed(() => {
   if (!status.value) return '—'
@@ -82,6 +100,17 @@ async function loadEmail(): Promise<void> {
   }
 }
 
+async function loadNetwork(): Promise<void> {
+  try {
+    const result = await api.networkStatus()
+    network.value = result
+    networkEnabled.value = result.market_proxy_enabled
+    networkUrl.value = result.market_proxy_url
+  } catch (caught) {
+    networkError.value = caught instanceof Error ? caught.message : '网络设置加载失败'
+  }
+}
+
 async function loadPrefs(): Promise<void> {
   try {
     prefs.value = await api.notificationPreferences()
@@ -93,7 +122,7 @@ async function loadPrefs(): Promise<void> {
 async function load(): Promise<void> {
   loading.value = true
   error.value = null
-  await Promise.all([loadLlm(), loadEmail(), loadPrefs()])
+  await Promise.all([loadLlm(), loadEmail(), loadNetwork(), loadPrefs()])
   loading.value = false
 }
 
@@ -197,6 +226,39 @@ async function testEmail(): Promise<void> {
     emailError.value = caught instanceof Error ? caught.message : '测试邮件发送失败'
   } finally {
     emailTesting.value = false
+  }
+}
+
+async function saveNetwork(): Promise<void> {
+  networkSaving.value = true
+  networkError.value = null
+  networkNotice.value = null
+  probeResult.value = null
+  try {
+    network.value = await api.saveNetworkSettings({
+      market_proxy_enabled: networkEnabled.value,
+      market_proxy_url: networkUrl.value || undefined,
+    })
+    networkEnabled.value = network.value.market_proxy_enabled
+    networkUrl.value = network.value.market_proxy_url
+    networkNotice.value = '网络设置已保存；API 与 Worker 会按新设置取行情，无需重启。'
+  } catch (caught) {
+    networkError.value = caught instanceof Error ? caught.message : '保存失败'
+  } finally {
+    networkSaving.value = false
+  }
+}
+
+async function testMarket(): Promise<void> {
+  probeLoading.value = true
+  networkError.value = null
+  probeResult.value = null
+  try {
+    probeResult.value = await api.okxCheck('BTC-USDT')
+  } catch (caught) {
+    networkError.value = caught instanceof Error ? caught.message : '行情连接测试失败'
+  } finally {
+    probeLoading.value = false
   }
 }
 
@@ -307,6 +369,83 @@ onMounted(() => {
 
     <p class="form-note">
       Thesis 的「AI 润色」「AI 帮我整理」与只读对话都使用这里保存的配置。修改后无需重启 API。
+    </p>
+  </section>
+
+  <section v-if="network" class="form-card settings-card">
+    <header class="settings-card-head">
+      <div>
+        <p class="eyebrow">Network · OKX</p>
+        <h2>行情代理</h2>
+      </div>
+      <span class="status-pill" :class="{ active: networkEnabled }">
+        {{ networkEnabled ? '使用代理' : '直连' }}
+      </span>
+    </header>
+
+    <div class="settings-status">
+      <div>
+        <span>配置来源</span>
+        <strong>{{ networkSourceLabel }}</strong>
+      </div>
+      <div>
+        <span>当前生效</span>
+        <strong class="mono">{{ network.effective_proxy ?? '不使用代理' }}</strong>
+      </div>
+      <div>
+        <span>环境变量回退</span>
+        <strong class="mono">{{ network.env_fallback ?? '—' }}</strong>
+      </div>
+      <div>
+        <span>默认 URL</span>
+        <strong class="mono">{{ network.default_url }}</strong>
+      </div>
+    </div>
+
+    <div class="form-grid">
+      <label class="form-field checkbox">
+        <input v-model="networkEnabled" type="checkbox" />
+        <span>OKX 行情请求使用代理</span>
+      </label>
+
+      <label class="form-field">
+        <span>代理 URL</span>
+        <input
+          v-model="networkUrl"
+          type="text"
+          :disabled="!networkEnabled"
+          placeholder="socks5h://127.0.0.1:7897"
+        />
+        <small>
+          支持 http://、https://、socks5://、socks5h://。建议用 socks5h，让 DNS 在代理侧解析。
+        </small>
+      </label>
+    </div>
+
+    <div class="form-actions">
+      <button class="ghost-button" type="button" :disabled="probeLoading" @click="testMarket">
+        {{ probeLoading ? '测试中…' : '测试行情连接' }}
+      </button>
+      <button class="primary-button" type="button" :disabled="networkSaving" @click="saveNetwork">
+        {{ networkSaving ? '保存中…' : '保存网络设置' }}
+      </button>
+    </div>
+
+    <p v-if="networkError" class="error">{{ networkError }}</p>
+    <p v-if="networkNotice" class="notice">{{ networkNotice }}</p>
+    <p v-if="probeResult" class="test-result" :class="{ ok: probeResult.ok }">
+      <template v-if="probeResult.ok">
+        连接成功 · {{ probeResult.price }} · {{ probeResult.staleness }} ·
+        {{ probeResult.latency_ms }} ms · 来源 {{ probeResult.proxy_source }}
+      </template>
+      <template v-else>
+        连接失败 · {{ probeResult.error_type }} · {{ probeResult.error }}
+      </template>
+    </p>
+
+    <p class="form-note">
+      关闭开关会完全绕过代理（包括环境变量），当前网络下 OKX 直连可能失败。
+      保存后 API 与 Worker 在下一次请求/任务时生效，无需重启。测试使用已保存的设置。
     </p>
   </section>
 

@@ -61,6 +61,7 @@ class OKXProvider:
         timeout_seconds: float = 10.0,
         client: httpx.AsyncClient | None = None,
         proxy: str | None = None,
+        trust_env: bool = True,
     ) -> None:
         if client is not None:
             self._client = client
@@ -79,7 +80,7 @@ class OKXProvider:
                 base_url=base_url,
                 timeout=httpx.Timeout(timeout_seconds),
                 headers={"User-Agent": "thesium/0.1"},
-                trust_env=True,
+                trust_env=trust_env,
             )
         self._owns_client = client is None
 

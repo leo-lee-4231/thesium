@@ -27,6 +27,7 @@ async def get_meta() -> MetaOut:
             "agent:scheduler",
             "notifications:email",
             "notifications:policy",
+            "settings:network",
             "chat:read-only",
         ],
     )

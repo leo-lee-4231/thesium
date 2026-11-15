@@ -4,7 +4,7 @@
 > 对应决策：`00-decisions.md` D1–D22
 > 说明：本文是设计口径，不是最终 Migration；字段名可在实现时微调，但聚合边界与不变量不应随意改变。
 >
-> **实现备注（P5）**：当前 v1 只实现 Web 会话，`conversations` 暂无 `channel`/`external_thread_id`，飞书字段待 P7 恢复时再加；`notifications` 用 `decision_id` 唯一 + 查询冷却，而不是 `dedupe_key` 唯一；`audit_logs` 未建，Run/事件/快照已承担审计。
+> **实现备注（P5）**：当前 v1 只实现 Web 会话，`conversations` 暂无 `channel`/`external_thread_id`，飞书字段待 P7 恢复时再加；`notifications` 用 `decision_id` 唯一 + 查询冷却，而不是 `dedupe_key` 唯一；`audit_logs` 未建，Run/事件/快照已承担审计。行情代理开关存在 `network_settings`（数据库优先于 `THESIUM_MARKET_PROXY` 环境变量）。
 
 ---
 
