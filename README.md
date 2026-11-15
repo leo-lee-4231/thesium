@@ -112,6 +112,24 @@ cd frontend && npm run dev -- --host 127.0.0.1
 
 OKX 在当前网络需要代理时，API 与 Worker 启动前都要设置 `HTTPS_PROXY`（例如 `HTTPS_PROXY=http://127.0.0.1:7897`）。
 
+行情报错时先区分类型：
+
+| 错误 | 含义 | 处理 |
+|---|---|---|
+| `MARKET_UNAVAILABLE` + `ReadError`/`ConnectError`/`Timeout` | 到 OKX 的网络链路失败，通常是本机代理/节点断开或 TLS 被重置，**不是限流** | 检查代理进程；用下面的命令验证代理 |
+| `RATE_LIMITED`（HTTP 429 / OKX code 50011） | OKX 公共接口限流 | 等约 1 分钟再试 |
+| `UPSTREAM_ERROR`（HTTP 5xx / 其他 OKX code） | OKX 服务端或业务错误 | 稍后重试；持续出现再看 OKX 状态 |
+| `NO_DATA` | OKX 返回空数据 | 检查标的是否存在/是否停牌 |
+
+```bash
+# 代理连通性：返回 200 说明代理到 OKX 正常；000 表示代理/上游不可达
+curl -x http://127.0.0.1:7897 -sS -m 10 -o /dev/null \
+  -w '%{http_code} in %{time_total}s\n' \
+  'https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT'
+```
+
+当前网络下 OKX 直连会超时；必须走代理。代理短暂抖动时，API 会重试 3 次，仍失败就返回 `MARKET_UNAVAILABLE`，恢复后点「立即分析」重试即可。
+
 AI 润色/整理需要 OpenAI 兼容模型。打开 http://127.0.0.1:5173/settings 配置：
 
 - Base URL（如 `https://api.deepseek.com/v1`）
