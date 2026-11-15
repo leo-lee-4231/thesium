@@ -158,11 +158,18 @@ rsync -av --delete \
 
 或者服务器上 `git clone` 你的仓库。
 
+> 当前 `docker-compose.prod.yml` 使用 `build:`，服务器上必须有源码树：
+> `backend/`、`frontend/`、`deploy/`、`backend/pyproject.toml`、`frontend/package-lock.json` 等。
+> 只复制一个 compose 文件 + `.env` 是构建不出来的。
+>
+> `.env` 不在仓库里，要单独在服务器上创建；不要把本地 `.env` 一起 rsync 过去。
+
 服务器上：
 
 ```bash
 cd /opt/thesium
 ls deploy/docker-compose.prod.yml deploy/env.production.example
+ls backend/app frontend/src
 ```
 
 ---
@@ -221,7 +228,9 @@ chmod 600 .env
 docker compose -f deploy/docker-compose.prod.yml --env-file .env up -d --build
 ```
 
-镜像存在本机 Docker 的 `/var/lib/docker`，不需要镜像仓库。缺点是换机器/重装系统要重新构建；代码更新后也要重新 `--build`。
+这要求服务器上有完整源码树（项目根目录下的 `backend/`、`frontend/`、`deploy/`），因为 compose 的 `build.context: ..` 会把它们作为构建上下文。镜像存在本机 Docker 的 `/var/lib/docker`，不需要镜像仓库。缺点是换机器/重装系统要重新构建；代码更新后也要重新 `--build`。
+
+如果你不想在服务器上放源码，就用下面的 ACR 或 `docker save` 方式：服务器只保留 compose + `.env`，镜像从仓库/离线 tar 加载。
 
 如果出现以下情况，建议用**阿里云容器镜像服务 ACR 个人版**：
 
