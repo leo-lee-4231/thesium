@@ -1628,3 +1628,37 @@ a {
     width: 100%;
   }
 }
+
+/* Pre-trade stop preview */
+.stop-preview-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+.stop-preview-actions .ghost-button {
+  margin-top: 0;
+}
+
+.stop-preview {
+  padding: 11px 12px;
+  border: 1px solid rgba(245, 194, 107, 0.24);
+  border-radius: 9px;
+  background: rgba(245, 194, 107, 0.05);
+}
+
+.stop-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--amber);
+  font-size: 12px;
+}
+
+.form-help {
+  margin: 0 0 6px;
+  font-size: 10px;
+  line-height: 1.6;
+}

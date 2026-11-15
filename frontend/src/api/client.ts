@@ -302,6 +302,38 @@ export interface AgentRun {
   finished_at: string | null
 }
 
+export interface StopLossPreviewInput {
+  side: 'LONG' | 'SHORT'
+  entry_price: string
+  quantity_base: string
+  account_equity_usd: string
+  max_drawdown_pct: string
+  max_concurrent_positions?: number
+  max_risk_per_trade_pct?: string
+  risk_budget_usd?: string
+  explicit_stop?: string
+  liquidation_price?: string
+  fee_buffer_usd?: string
+}
+
+export interface StopLossPreviewResult {
+  derived_stop: string
+  explicit_stop: string | null
+  effective_stop: string
+  stop_source: 'USER' | 'DERIVED'
+  risk_amount_usd: string
+  risk_pct_equity: string
+  per_trade_risk_pct: string
+  risk_pct_source: string
+  stop_distance_pct: string
+  derived_stop_distance_pct: string
+  loss_at_stop_usd: string
+  within_budget: boolean
+  liquidation_buffer_pct: string | null
+  warnings: string[]
+  assumptions: string[]
+}
+
 export interface AnalyzeResult {
   run: AgentRun
   decision: Decision
@@ -391,6 +423,11 @@ export const api = {
   meta: () => request<Meta>('/api/v1/meta'),
   assets: () => request<Asset[]>('/api/v1/assets'),
   streams: () => request<Stream[]>('/api/v1/streams'),
+  previewStopLoss: (payload: StopLossPreviewInput) =>
+    request<StopLossPreviewResult>('/api/v1/risk/stop-loss/preview', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
   analyze: (streamId: string) =>
     request<AnalyzeResult>(`/api/v1/streams/${streamId}/analyze`, { method: 'POST' }),
   decisions: (streamId: string) =>

@@ -8,6 +8,8 @@ import {
   type Portfolio,
   type PositionEvent,
   type SpotEventInput,
+  type StopLossPreviewResult,
+  type ThesisVersion,
 } from '@/api/client'
 
 const props = defineProps<{
@@ -17,6 +19,9 @@ const props = defineProps<{
 
 const tab = ref<'spot' | 'perp'>('spot')
 const portfolio = ref<Portfolio | null>(null)
+const thesis = ref<ThesisVersion | null>(null)
+const stopPreview = ref<StopLossPreviewResult | null>(null)
+const previewing = ref(false)
 const spotEvents = ref<PositionEvent[]>([])
 const derivativeEvents = ref<DerivativeEvent[]>([])
 const loading = ref(true)
@@ -45,6 +50,12 @@ const perpTime = ref(localNow())
 const perpNote = ref('')
 
 const spot = computed(() => portfolio.value?.spot ?? null)
+const riskParams = computed<Record<string, unknown>>(
+  () => (thesis.value?.structured_content?.risk as Record<string, unknown>) ?? {},
+)
+const derivativeIntent = computed<Record<string, unknown>>(
+  () => (thesis.value?.structured_content?.derivative_intent as Record<string, unknown>) ?? {},
+)
 const perp = computed(() => portfolio.value?.derivative ?? null)
 const liqDanger = computed(() => {
   const value = perp.value?.metrics.liq_distance_pct
@@ -88,12 +99,15 @@ async function load(): Promise<void> {
   loading.value = true
   error.value = null
   try {
-    const [portfolioResult, spotEventResult, derivativeEventResult] = await Promise.all([
-      api.portfolio(props.streamId),
-      api.spotEvents(props.streamId),
-      api.derivativeEvents(props.streamId),
-    ])
+    const [portfolioResult, spotEventResult, derivativeEventResult, thesisResult] =
+      await Promise.all([
+        api.portfolio(props.streamId),
+        api.spotEvents(props.streamId),
+        api.derivativeEvents(props.streamId),
+        api.thesis(props.streamId),
+      ])
     portfolio.value = portfolioResult
+    thesis.value = thesisResult
     spotEvents.value = spotEventResult.slice(0, 5)
     derivativeEvents.value = derivativeEventResult.slice(0, 5)
   } catch (caught) {
@@ -166,6 +180,46 @@ function buildDerivativePayload(): DerivativeEventInput {
     payload.margin = perpMargin.value
   }
   return payload
+}
+
+async function previewStop(): Promise<void> {
+  previewing.value = true
+  error.value = null
+  stopPreview.value = null
+  try {
+    const equity = String(riskParams.value.account_equity_usd ?? '')
+    const maxDrawdown = String(riskParams.value.max_drawdown_pct ?? '')
+    if (!equity || !maxDrawdown) {
+      throw new Error('Thesis 的 risk 里缺少 account_equity_usd 或 max_drawdown_pct')
+    }
+    if (!perpPrice.value || !perpQty.value) {
+      throw new Error('请先填写开仓价与数量')
+    }
+    const explicit = perpSide.value === 'SHORT'
+      ? derivativeIntent.value.short_stop_loss_price
+      : derivativeIntent.value.long_stop_loss_price
+    stopPreview.value = await api.previewStopLoss({
+      side: perpSide.value,
+      entry_price: perpPrice.value,
+      quantity_base: perpQty.value,
+      account_equity_usd: equity,
+      max_drawdown_pct: maxDrawdown,
+      max_concurrent_positions: Number(riskParams.value.max_concurrent_positions ?? 5),
+      max_risk_per_trade_pct: riskParams.value.max_risk_per_trade_pct
+        ? String(riskParams.value.max_risk_per_trade_pct)
+        : undefined,
+      risk_budget_usd: riskParams.value.risk_budget_usd
+        ? String(riskParams.value.risk_budget_usd)
+        : undefined,
+      explicit_stop: explicit ? String(explicit) : undefined,
+      liquidation_price: perpLiq.value || undefined,
+      fee_buffer_usd: perpFee.value || undefined,
+    })
+  } catch (caught) {
+    error.value = caught instanceof Error ? caught.message : '止损预览失败'
+  } finally {
+    previewing.value = false
+  }
 }
 
 async function submitDerivative(): Promise<void> {
@@ -312,6 +366,10 @@ onMounted(() => {
 
       <form v-else class="position-form" @submit.prevent="submitDerivative">
         <p class="card-kicker">记录永续</p>
+        <p class="muted form-help">
+          `derivative` 是真实永续持仓；`risk_plan` 由程序根据持仓 + Thesis 风险参数计算，不是手填字段。
+          开仓前可先用「计算建议止损」预览。
+        </p>
         <label class="form-field">
           <span>动作</span>
           <select v-model="perpKind">
@@ -362,6 +420,32 @@ onMounted(() => {
           <span>成交时间</span>
           <input v-model="perpTime" type="datetime-local" />
         </label>
+
+        <div v-if="perpKind === 'OPEN' || perpKind === 'INCREASE'" class="stop-preview-actions">
+          <button class="ghost-button" type="button" :disabled="previewing" @click="previewStop">
+            {{ previewing ? '计算中…' : '计算建议止损' }}
+          </button>
+          <span class="muted">按 Thesis 的权益/回撤推导</span>
+        </div>
+        <div v-if="stopPreview" class="stop-preview">
+          <div class="stop-preview-head">
+            <strong>建议止损 {{ stopPreview.effective_stop }}</strong>
+            <span class="mono">{{ stopPreview.stop_source }}</span>
+          </div>
+          <p class="muted">
+            单笔风险 {{ stopPreview.risk_amount_usd }} USDT ·
+            权益 {{ stopPreview.risk_pct_equity }}% ·
+            距开仓 {{ stopPreview.stop_distance_pct }}%
+          </p>
+          <p v-if="!stopPreview.within_budget" class="error">该止损超出单笔风险预算</p>
+          <ul v-if="stopPreview.warnings.length" class="warning-list">
+            <li v-for="warning in stopPreview.warnings" :key="warning">{{ warning }}</li>
+          </ul>
+          <p v-if="stopPreview.assumptions.length" class="muted">
+            {{ stopPreview.assumptions.join(' · ') }}
+          </p>
+        </div>
+
         <button class="primary-button" type="submit" :disabled="submitting">
           {{ submitting ? '提交中…' : '记录永续事件' }}
         </button>
