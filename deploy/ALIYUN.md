@@ -21,14 +21,14 @@ Aliyun Ubuntu 24.04
   │   ├─ api                      内部 8000
   │   ├─ worker                   内部
   │   └─ postgres                 内部 5432
-  └─ Clash mixed-port 7897
+  └─ Clash mixed-port 37890
         └─ OKX / LLM / RSS 出口
 ```
 
 安全边界：
 
 - 公网只开 SSH 22（最好限制来源 IP）；
-- 不开放 80/443/8080/8000/5432/7897；
+- 不开放 80/443/8080/8000/5432/37890；
 - Tailscale 只对 tailnet 暴露；
 - Docker 的 Postgres/API 不发布端口。
 
@@ -47,7 +47,7 @@ Aliyun Ubuntu 24.04
 
 - 80 / 443（除非以后自己加 HTTPS 反向代理）
 - 8080 / 8000 / 5432
-- 7897（Clash）
+- 37890（Clash）
 
 出方向默认全部放行即可。
 
@@ -104,13 +104,13 @@ Thesium 的 API/Worker 在容器里，需要访问宿主机 Clash 的 mixed-port
 检查 Clash 监听地址：
 
 ```bash
-ss -lntp | grep 7897
+ss -lntp | grep 37890
 ```
 
-如果显示 `127.0.0.1:7897`，容器访问不到。修改 Clash/Mihomo 配置：
+如果显示 `127.0.0.1:37890`，容器访问不到。修改 Clash/Mihomo 配置：
 
 ```yaml
-mixed-port: 7897
+mixed-port: 37890
 allow-lan: true
 bind-address: '*'
 ```
@@ -126,7 +126,7 @@ sudo systemctl restart mihomo
 验证宿主机：
 
 ```bash
-curl -x http://127.0.0.1:7897 -sS -m 10 -o /dev/null \
+curl -x http://127.0.0.1:37890 -sS -m 10 -o /dev/null \
   -w '%{http_code}\n' \
   'https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT'
 ```
@@ -136,7 +136,7 @@ curl -x http://127.0.0.1:7897 -sS -m 10 -o /dev/null \
 > **建议关闭 Clash TUN 模式**，只使用 mixed-port。  
 > TUN 会和 Docker 网络、Tailscale 路由互相干扰。如果必须开 TUN，需要给 `100.64.0.0/10` 和 `ts.net` 加绕过规则，复杂度明显更高。
 
-安全组已禁止 7897 入站；不要在公网放行它。
+安全组已禁止 37890 入站；不要在公网放行它。
 
 ---
 
@@ -196,9 +196,9 @@ nano .env
 POSTGRES_PASSWORD=<上面生成的密码>
 THESIUM_SECRET_KEY=<上面生成的 Fernet 密钥>
 THESIUM_WEB_BASE_URL=http://127.0.0.1:8080
-THESIUM_MARKET_PROXY=socks5h://host.docker.internal:7897
-HTTP_PROXY=http://host.docker.internal:7897
-HTTPS_PROXY=http://host.docker.internal:7897
+THESIUM_MARKET_PROXY=socks5h://host.docker.internal:37890
+HTTP_PROXY=http://host.docker.internal:37890
+HTTPS_PROXY=http://host.docker.internal:37890
 NO_PROXY=localhost,127.0.0.1,postgres,api,web
 ```
 
@@ -212,6 +212,78 @@ chmod 600 .env
 ```
 
 ---
+
+## 5.1 镜像放哪里？
+
+单台阿里云轻量服务器，优先 **直接在服务器上构建**：
+
+```bash
+docker compose -f deploy/docker-compose.prod.yml --env-file .env up -d --build
+```
+
+镜像存在本机 Docker 的 `/var/lib/docker`，不需要镜像仓库。缺点是换机器/重装系统要重新构建；代码更新后也要重新 `--build`。
+
+如果出现以下情况，建议用**阿里云容器镜像服务 ACR 个人版**：
+
+- 服务器内存较小（1–2 GB），构建 Node/Python 镜像容易 OOM；
+- 有多台机器或 CI；
+- 想保留固定版本、快速回滚。
+
+### ACR 个人版的地域问题
+
+- 个人版实例创建时要选**地域**，镜像存储在该地域；
+- 同地域 ECS 优先用 VPC 地址拉取，例如：
+  `registry-vpc.cn-hangzhou.aliyuncs.com`
+- 跨地域可以通过公网地址拉取，例如：
+  `registry.cn-hangzhou.aliyuncs.com`，但速度/流量不如同地域，而且个人版**没有跨地域复制**；
+- 生产上最合适：**ACR 实例和 ECS 在同一个地域**（例如都在杭州/上海）。
+- 个人版有免费额度/仓库限制，具体以控制台为准；镜像总量不大时够用。
+
+### 推送示例
+
+在能构建 `linux/amd64` 镜像的机器上：
+
+```bash
+# 登录（用户名是阿里云账号全名，密码是 ACR 的固定密码/临时密码）
+docker login --username=<阿里云账号> registry.cn-hangzhou.aliyuncs.com
+
+# Apple Silicon 本机构建 x86 镜像
+docker buildx build --platform linux/amd64 \
+  -f deploy/Dockerfile.api \
+  -t registry.cn-hangzhou.aliyuncs.com/<命名空间>/thesium-api:20261115 \
+  --push .
+
+docker buildx build --platform linux/amd64 \
+  -f deploy/Dockerfile.web \
+  -t registry.cn-hangzhou.aliyuncs.com/<命名空间>/thesium-web:20261115 \
+  --push .
+```
+
+服务器上登录并拉取：
+
+```bash
+docker login --username=<阿里云账号> registry-vpc.cn-hangzhou.aliyuncs.com
+docker pull registry-vpc.cn-hangzhou.aliyuncs.com/<命名空间>/thesium-api:20261115
+docker pull registry-vpc.cn-hangzhou.aliyuncs.com/<命名空间>/thesium-web:20261115
+```
+
+然后把 `deploy/docker-compose.prod.yml` 里 api/worker/web 的 `build:` 换成：
+
+```yaml
+image: registry-vpc.cn-hangzhou.aliyuncs.com/<命名空间>/thesium-api:20261115
+# web 用 thesium-web
+```
+
+或者单独写一个 `docker-compose.images.yml` 覆盖文件，启动时用：
+
+```bash
+docker compose -f deploy/docker-compose.prod.yml \
+  -f deploy/docker-compose.images.yml \
+  --env-file .env up -d --no-build
+```
+
+> 不建议把镜像放 Docker Hub：国内拉取慢且不稳定；ACR 同地域最合适。  
+> 个人版没有跨地域复制，别把 ACR 建在离 ECS 很远的地域。
 
 ## 6. 启动 Thesium
 
@@ -255,7 +327,7 @@ import httpx
 print(httpx.get(
     "https://www.okx.com/api/v5/market/ticker",
     params={"instId": "BTC-USDT"},
-    proxy="socks5h://host.docker.internal:7897",
+    proxy="socks5h://host.docker.internal:37890",
     timeout=10,
 ).status_code)
 PY
@@ -363,7 +435,7 @@ Tailscale 官方协调服务器/DERP 可能不稳定。先在 iPhone 蜂窝和 W
 
 1. **Settings → LLM Provider**：填 Base URL / Model / API Key，测试连接；
 2. **Settings → 邮件通知**：填 SMTP，发送测试邮件；
-3. **Settings → 行情代理**：默认应显示 `socks5h://127.0.0.1:7897`（数据库/环境变量），点「测试行情连接」；
+3. **Settings → 行情代理**：默认应显示 `socks5h://host.docker.internal:37890`（数据库/环境变量），点「测试行情连接」；
 4. **Dashboard → 创建投资产品**：BTC；
 5. **产品页 → Thesis**：写投资论点并确认；
 6. **System**：确认调度器、最近 Run、日报状态；
@@ -376,7 +448,7 @@ Tailscale 官方协调服务器/DERP 可能不稳定。先在 iPhone 蜂窝和 W
 
 ## 9. 安全加固清单
 
-- 阿里云安全组：只开 22（你的 IP）+ 可选 UDP 41641；不要开 80/443/8080/8000/5432/7897；
+- 阿里云安全组：只开 22（你的 IP）+ 可选 UDP 41641；不要开 80/443/8080/8000/5432/37890；
 - Tailscale：
   - 账号开启 MFA；
   - 设备审批 / ACL 限制只有你的设备可访问；
@@ -440,7 +512,7 @@ tailscale serve status
 
 | 现象 | 检查 |
 |---|---|
-| `MARKET_UNAVAILABLE` / `ConnectError` | Clash 是否 `allow-lan`、7897 是否监听、TUN 是否关闭；容器内 `okx-check` |
+| `MARKET_UNAVAILABLE` / `ConnectError` | Clash 是否 `allow-lan`、37890 是否监听、TUN 是否关闭；容器内 `okx-check` |
 | `502 Bad Gateway` | `docker compose ... ps`，api 是否 healthy，日志 |
 | 手机打不开 Tailscale 地址 | `tailscale status`、`tailscale serve status`、iPhone VPN 是否开启 |
 | `tailscale serve` 报 HTTPS 不可用 | 管理后台开启 HTTPS Certificates，或改用 `--http=80` |

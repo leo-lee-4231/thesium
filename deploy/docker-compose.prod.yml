@@ -3,7 +3,7 @@
 # - Only the web port is published, and only on 127.0.0.1.
 #   Put Tailscale Serve (or another private reverse proxy) in front of it.
 # - PostgreSQL and the API are not reachable from the public network.
-# - Clash runs on the host; containers use host.docker.internal:7897.
+# - Clash runs on the host; containers use host.docker.internal:37890.
 #
 # Usage:
 #   cp deploy/env.production.example .env
@@ -17,15 +17,15 @@ x-app-environment: &app-environment
   THESIUM_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-thesium}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-thesium}
   THESIUM_SECRET_KEY: ${THESIUM_SECRET_KEY:?THESIUM_SECRET_KEY is required}
   THESIUM_WEB_BASE_URL: ${THESIUM_WEB_BASE_URL:-http://127.0.0.1:8080}
-  THESIUM_MARKET_PROXY: ${THESIUM_MARKET_PROXY:-socks5h://host.docker.internal:7897}
+  THESIUM_MARKET_PROXY: ${THESIUM_MARKET_PROXY:-socks5h://host.docker.internal:37890}
   THESIUM_SCHEDULER_ENABLED: ${THESIUM_SCHEDULER_ENABLED:-true}
   THESIUM_WORKER_POLL_SECONDS: ${THESIUM_WORKER_POLL_SECONDS:-15}
   THESIUM_LOG_LEVEL: ${THESIUM_LOG_LEVEL:-INFO}
   THESIUM_LLM_BASE_URL: ${THESIUM_LLM_BASE_URL:-}
   THESIUM_LLM_MODEL: ${THESIUM_LLM_MODEL:-}
   THESIUM_LLM_API_KEY: ${THESIUM_LLM_API_KEY:-}
-  HTTP_PROXY: ${HTTP_PROXY:-http://host.docker.internal:7897}
-  HTTPS_PROXY: ${HTTPS_PROXY:-http://host.docker.internal:7897}
+  HTTP_PROXY: ${HTTP_PROXY:-http://host.docker.internal:37890}
+  HTTPS_PROXY: ${HTTPS_PROXY:-http://host.docker.internal:37890}
   NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,postgres,api,web}
   TZ: ${TZ:-Asia/Shanghai}
 
