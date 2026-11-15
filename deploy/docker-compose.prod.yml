@@ -1,0 +1,135 @@
+# Production compose for a single Aliyun/NAS host.
+#
+# - Only the web port is published, and only on 127.0.0.1.
+#   Put Tailscale Serve (or another private reverse proxy) in front of it.
+# - PostgreSQL and the API are not reachable from the public network.
+# - Clash runs on the host; containers use host.docker.internal:7897.
+#
+# Usage:
+#   cp deploy/env.production.example .env
+#   # edit .env
+#   docker compose -f deploy/docker-compose.prod.yml --env-file .env up -d --build
+
+name: thesium
+
+x-app-environment: &app-environment
+  THESIUM_ENVIRONMENT: production
+  THESIUM_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-thesium}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-thesium}
+  THESIUM_SECRET_KEY: ${THESIUM_SECRET_KEY:?THESIUM_SECRET_KEY is required}
+  THESIUM_WEB_BASE_URL: ${THESIUM_WEB_BASE_URL:-http://127.0.0.1:8080}
+  THESIUM_MARKET_PROXY: ${THESIUM_MARKET_PROXY:-socks5h://host.docker.internal:7897}
+  THESIUM_SCHEDULER_ENABLED: ${THESIUM_SCHEDULER_ENABLED:-true}
+  THESIUM_WORKER_POLL_SECONDS: ${THESIUM_WORKER_POLL_SECONDS:-15}
+  THESIUM_LOG_LEVEL: ${THESIUM_LOG_LEVEL:-INFO}
+  THESIUM_LLM_BASE_URL: ${THESIUM_LLM_BASE_URL:-}
+  THESIUM_LLM_MODEL: ${THESIUM_LLM_MODEL:-}
+  THESIUM_LLM_API_KEY: ${THESIUM_LLM_API_KEY:-}
+  HTTP_PROXY: ${HTTP_PROXY:-http://host.docker.internal:7897}
+  HTTPS_PROXY: ${HTTPS_PROXY:-http://host.docker.internal:7897}
+  NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,postgres,api,web}
+  TZ: ${TZ:-Asia/Shanghai}
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
+    restart: unless-stopped
+    command:
+      - postgres
+      - -c
+      - shared_buffers=128MB
+      - -c
+      - max_connections=50
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-thesium}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-thesium}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER:-thesium} -d ${POSTGRES_DB:-thesium}
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    # Intentionally no ports: only the compose network can reach Postgres.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+      args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.12-slim}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    # No public port. Use `docker compose exec api ...` or an SSH tunnel for debugging.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+      args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.12-slim}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
+    command: ["python", "-m", "app.workers.main"]
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment: *app-environment
+    depends_on:
+      api:
+        condition: service_healthy
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:24-alpine}
+        NGINX_IMAGE: ${NGINX_IMAGE:-nginx:1.27-alpine}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  pgdata:
