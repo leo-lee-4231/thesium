@@ -205,6 +205,10 @@ onMounted(() => {
       <p v-if="marketLoading" class="muted">正在拉取 OKX 行情…</p>
       <div v-else-if="error" class="market-error">
         <p class="error">{{ error }}</p>
+        <p class="muted">
+          OKX 直连在当前网络不可用；若本机代理 127.0.0.1:7897 刚重启，等待几秒再重试。
+          持仓、Thesis 与历史 Decision 不依赖本次行情，仍可查看。
+        </p>
         <button class="ghost-button" type="button" @click="loadMarket">重试</button>
       </div>
 

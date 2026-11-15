@@ -13,6 +13,8 @@ const notice = ref<string | null>(null)
 
 const latest = computed(() => decisions.value[0] ?? null)
 const llmMissing = computed(() => (error.value ?? '').includes('LLM_NOT_CONFIGURED'))
+const marketUnavailable = computed(() => (error.value ?? '').includes('MARKET_UNAVAILABLE'))
+const rateLimited = computed(() => (error.value ?? '').includes('RATE_LIMITED'))
 
 function fmtDate(value: string): string {
   return new Date(value).toLocaleString('zh-CN', {
@@ -77,6 +79,13 @@ onMounted(() => {
     <p v-if="error" class="error">
       {{ error }}
       <RouterLink v-if="llmMissing" class="inline-link" to="/settings">去 Settings 配置 LLM</RouterLink>
+    </p>
+    <p v-if="rateLimited" class="error-hint">
+      OKX 公共接口在限流（HTTP 429 或 code 50011）。等待约 1 分钟后重试；这不是 LLM 或 Thesis 的问题。
+    </p>
+    <p v-else-if="marketUnavailable" class="error-hint">
+      OKX 行情不可达。常见原因是本机代理 127.0.0.1:7897 短暂断开或网络波动；当前网络下 OKX 直连不可用。
+      稍后点「立即分析」重试；LLM 与 Thesis 未受影响。
     </p>
     <p v-if="notice" class="notice">{{ notice }}</p>
 

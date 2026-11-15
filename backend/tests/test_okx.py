@@ -123,3 +123,36 @@ async def test_provider_error_code() -> None:
         finally:
             await provider.close()
     assert error.value.code == "UPSTREAM_ERROR"
+
+@respx.mock
+async def test_rate_limit_code_is_distinct(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.infrastructure.market.okx._MAX_ATTEMPTS", 1)
+    respx.get("https://www.okx.com/api/v5/market/ticker").mock(
+        return_value=httpx.Response(
+            200, json={"code": "50011", "msg": "Rate limit reached", "data": []}
+        )
+    )
+    provider = OKXProvider()
+    with pytest.raises(MarketProviderError) as error:
+        try:
+            await provider.get_quote("BTC-USDT")
+        finally:
+            await provider.close()
+    assert error.value.code == "RATE_LIMITED"
+    assert "50011" in error.value.message
+
+
+@respx.mock
+async def test_network_error_includes_exception_type(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.infrastructure.market.okx._MAX_ATTEMPTS", 1)
+    respx.get("https://www.okx.com/api/v5/market/ticker").mock(
+        side_effect=httpx.ReadError("")
+    )
+    provider = OKXProvider()
+    with pytest.raises(MarketProviderError) as error:
+        try:
+            await provider.get_quote("BTC-USDT")
+        finally:
+            await provider.close()
+    assert error.value.code == "UPSTREAM_UNAVAILABLE"
+    assert "ReadError" in error.value.message

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -18,6 +19,12 @@ _TIMEFRAME_MAP = {
     Timeframe.H4: "4H",
     Timeframe.D1: "1Dutc",
 }
+
+# OKX returns HTTP 200 with these business codes when the public rate limit is hit.
+_RATE_LIMIT_CODES = {"50011", "50013", "50026"}
+_MAX_ATTEMPTS = 3
+
+logger = logging.getLogger(__name__)
 
 
 def _decimal(value: Any) -> Decimal | None:
@@ -68,35 +75,65 @@ class OKXProvider:
 
     async def _request(self, path: str, params: dict[str, Any]) -> list[dict[str, Any]]:
         last_error: Exception | None = None
-        for attempt in range(3):
+        for attempt in range(_MAX_ATTEMPTS):
             try:
                 response = await self._client.get(path, params=params)
                 response.raise_for_status()
                 payload = response.json()
-                if payload.get("code") != "0":
-                    raise MarketProviderError(
-                        "UPSTREAM_ERROR",
-                        f"OKX error {payload.get('code')}: {payload.get('msg')}",
-                    )
+                code = str(payload.get("code"))
+                if code != "0":
+                    message = f"OKX error {code}: {payload.get('msg')}"
+                    if code in _RATE_LIMIT_CODES and attempt < _MAX_ATTEMPTS - 1:
+                        last_error = MarketProviderError("RATE_LIMITED", message)
+                        await asyncio.sleep(0.5 * (2**attempt))
+                        continue
+                    if code in _RATE_LIMIT_CODES:
+                        raise MarketProviderError("RATE_LIMITED", message)
+                    raise MarketProviderError("UPSTREAM_ERROR", message)
                 data = payload.get("data") or []
                 if not data:
                     raise MarketProviderError("NO_DATA", "OKX returned no data")
                 return data
             except MarketProviderError:
                 raise
-            except (httpx.TimeoutException, httpx.NetworkError) as exc:
-                last_error = exc
-                if attempt < 2:
-                    await asyncio.sleep(0.5 * (2**attempt))
             except httpx.HTTPStatusError as exc:
-                if exc.response.status_code in {429, 500, 502, 503, 504} and attempt < 2:
+                status = exc.response.status_code
+                if status == 429:
+                    last_error = exc
+                    if attempt < _MAX_ATTEMPTS - 1:
+                        await asyncio.sleep(0.5 * (2**attempt))
+                        continue
+                    raise MarketProviderError(
+                        "RATE_LIMITED", "OKX rate limited (HTTP 429)"
+                    ) from exc
+                if status in {500, 502, 503, 504} and attempt < _MAX_ATTEMPTS - 1:
                     last_error = exc
                     await asyncio.sleep(0.5 * (2**attempt))
                     continue
                 raise MarketProviderError(
-                    "UPSTREAM_ERROR", f"OKX HTTP {exc.response.status_code}"
+                    "UPSTREAM_ERROR", f"OKX HTTP {status}"
                 ) from exc
-        raise MarketProviderError("UPSTREAM_UNAVAILABLE", f"OKX unavailable: {last_error}")
+            except httpx.TransportError as exc:
+                # Includes timeouts, proxy errors, connection resets, and protocol
+                # errors. A dead local proxy commonly shows up as ReadError('').
+                last_error = exc
+                logger.warning(
+                    "OKX request failed",
+                    extra={
+                        "path": path,
+                        "attempt": attempt + 1,
+                        "error_type": type(exc).__name__,
+                        "error": repr(exc),
+                    },
+                )
+                if attempt < _MAX_ATTEMPTS - 1:
+                    await asyncio.sleep(0.5 * (2**attempt))
+                    continue
+        detail = f"{type(last_error).__name__}: {last_error!r}" if last_error else "no response"
+        raise MarketProviderError(
+            "UPSTREAM_UNAVAILABLE",
+            f"OKX network unavailable after {_MAX_ATTEMPTS} attempts ({detail})",
+        )
 
     async def get_quote(self, symbol: str) -> Quote:
         data = await self._request("/api/v5/market/ticker", {"instId": symbol})

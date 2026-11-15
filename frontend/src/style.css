@@ -2208,3 +2208,14 @@ a {
     grid-template-columns: 1fr;
   }
 }
+
+.error-hint {
+  margin: 8px 0 12px;
+  padding: 9px 12px;
+  border: 1px solid rgba(245, 194, 107, 0.24);
+  border-radius: 8px;
+  background: rgba(245, 194, 107, 0.05);
+  color: var(--amber);
+  font-size: 11px;
+  line-height: 1.65;
+}

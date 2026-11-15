@@ -207,6 +207,12 @@ onMounted(() => {
     {{ error }}
     <RouterLink v-if="error.includes('LLM')" class="inline-link" to="/settings">去 Settings 配置 LLM</RouterLink>
   </p>
+  <p v-if="error?.includes('RATE_LIMITED')" class="error-hint">
+    OKX 公共接口在限流，等待约 1 分钟后再试。
+  </p>
+  <p v-else-if="error?.includes('MARKET_UNAVAILABLE')" class="error-hint">
+    OKX 行情不可达，通常是本机代理短暂断开或网络波动；对话需要行情上下文，恢复后重试即可。
+  </p>
 
   <div v-if="!loading && stream" class="chat-layout">
     <aside class="chat-sidebar">
