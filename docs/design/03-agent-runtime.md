@@ -105,7 +105,8 @@ AgentRuntime
 3. 数据不足时，decision 用 WAIT/REVIEW，data_quality 标 INSUFFICIENT，不得强行给结论。
 4. 建议必须与用户 Thesis 对齐或明确说明冲突；不得替用户改 Thesis。
 5. 若存在永续持仓，必须输出 `derivative_recommendation`，动作与当前方向一致；不得估算清算价，只能使用用户录入值。
-6. 只给建议，不执行交易。
+6. 没有永续持仓时 risk_plan 为空是正常的，不要因此拒绝趋势/论点分析；只有建议开仓/加仓时才必须给止损。
+7. 只给建议，不执行交易。
 ```
 
 **CONVERSATION_REPLY**：
