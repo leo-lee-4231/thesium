@@ -1,6 +1,6 @@
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 DecisionEnum = Literal["BUY", "SELL", "HOLD", "REDUCE", "WAIT", "REVIEW"]
 PriorityEnum = Literal["LOW", "NORMAL", "HIGH", "URGENT"]
@@ -28,6 +28,23 @@ class Evidence(BaseModel):
     source_tool: str = ""
     as_of: str | None = None
     strength: Literal["STRONG", "MODERATE", "WEAK"] = "MODERATE"
+
+    @field_validator("strength", mode="before")
+    @classmethod
+    def normalize_strength(cls, value: object) -> object:
+        """Accept common LLM synonyms without weakening the stored schema."""
+        if not isinstance(value, str):
+            return value
+        normalized = value.strip().upper().replace("-", "_").replace(" ", "_")
+        aliases = {
+            "HIGH": "STRONG",
+            "VERY_HIGH": "STRONG",
+            "MEDIUM": "MODERATE",
+            "NORMAL": "MODERATE",
+            "LOW": "WEAK",
+            "VERY_LOW": "WEAK",
+        }
+        return aliases.get(normalized, normalized)
 
 
 class ThesisAlignment(BaseModel):

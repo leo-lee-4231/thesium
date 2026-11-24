@@ -31,7 +31,7 @@ Thesis 规则：
 - confidence: 0..1 的自评把握，不是胜率
 - priority: LOW/NORMAL/HIGH/URGENT
 - summary: 10–500 字，先结论
-- evidence_for / evidence_against: [{claim, kind(FACT|INFERENCE), source_tool, as_of, strength}]
+- evidence_for / evidence_against: [{claim, kind(FACT|INFERENCE), source_tool, as_of, strength(STRONG|MODERATE|WEAK，不要用 HIGH/MEDIUM/LOW)}]
 - thesis_alignment: {status(ALIGNED|PARTIALLY_ALIGNED|CONFLICTING|UNKNOWN), explanation, conflicting_fields}
 - position_impact: {assessment, exposure_usd, unrealized_pnl_usd, risk_budget_usage_pct, notes}
 - derivative_recommendation: null 或 {action, size_change_pct, rationale, invalidation_conditions, stop_loss:{price, source(USER|DERIVED), risk_amount_usd, risk_pct_equity, distance_pct, warnings}}

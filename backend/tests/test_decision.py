@@ -1,4 +1,4 @@
-from app.domain.decision import DecisionOutput, validate_decision
+from app.domain.decision import DecisionOutput, Evidence, validate_decision
 
 
 def base_output(**overrides):  # type: ignore[no-untyped-def]
@@ -102,3 +102,17 @@ def test_open_short_with_stop_and_permission_is_valid() -> None:
         output, has_thesis=True, has_derivative=False, derivative_side=None, allow_short=True
     )
     assert errors == []
+
+
+def test_evidence_strength_accepts_high_as_strong() -> None:
+    assert Evidence(claim="x", strength="HIGH").strength == "STRONG"
+
+
+def test_evidence_strength_accepts_medium_and_low_aliases() -> None:
+    assert Evidence(claim="x", strength="medium").strength == "MODERATE"
+    assert Evidence(claim="x", strength="LOW").strength == "WEAK"
+
+
+def test_decision_accepts_high_evidence_strength() -> None:
+    output = base_output(evidence_for=[{"claim": "x", "strength": "HIGH"}])
+    assert output.evidence_for[0].strength == "STRONG"
