@@ -228,7 +228,13 @@ chmod 600 .env
 docker compose -f deploy/docker-compose.prod.yml --env-file .env up -d --build
 ```
 
-这要求服务器上有完整源码树（项目根目录下的 `backend/`、`frontend/`、`deploy/`），因为 compose 的 `build.context: ..` 会把它们作为构建上下文。镜像存在本机 Docker 的 `/var/lib/docker`，不需要镜像仓库。缺点是换机器/重装系统要重新构建；代码更新后也要重新 `--build`。
+这要求服务器上有完整源码树（项目根目录下的 `backend/`、`frontend/`、`deploy/`），因为 compose 的 `build.context: ..` 会把它们作为构建上下文。镜像存在本机 Docker 的 `/var/lib/docker`，不需要镜像仓库。缺点是换机器/重装系统要重新构建。
+
+API/worker 的 Dockerfile 把 Python 依赖放在独立的 `base` stage：只有 `backend/pyproject.toml` 变化时才重新执行 `pip install`，日常修改 `backend/app` 只会重新 COPY 应用代码，不会重新下载 PyPI 包。Web 构建也给 `npm ci` 加了 BuildKit 缓存。首次构建仍需联网安装依赖；要强制重建依赖时用：
+
+```bash
+docker compose -f deploy/docker-compose.prod.yml --env-file .env build --no-cache api worker web
+```
 
 如果你不想在服务器上放源码，就用下面的 ACR 或 `docker save` 方式：服务器只保留 compose + `.env`，镜像从仓库/离线 tar 加载。
 
