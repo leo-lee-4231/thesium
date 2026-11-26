@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application.job_service import DAILY_DIGEST, MONITOR_ANALYSIS, enqueue
+from app.application.job_service import (
+    DAILY_DIGEST,
+    MARKET_RETENTION,
+    MONITOR_ANALYSIS,
+    enqueue,
+)
 from app.application.llm_provider_service import LLMProviderError, LLMProviderService
 from app.db.models import DailyDigest, InvestmentStream, Job, NotificationPreference
 
@@ -21,9 +26,7 @@ def monitor_due_at(stream: InvestmentStream) -> datetime | None:
     return base + timedelta(minutes=interval)
 
 
-async def enqueue_due_monitors(
-    session: AsyncSession, *, now: datetime | None = None
-) -> int:
+async def enqueue_due_monitors(session: AsyncSession, *, now: datetime | None = None) -> int:
     """Create at most one monitor job per active product.
 
     The LLM is checked first: without a configured provider a scheduled run can
@@ -156,6 +159,7 @@ async def recover_stale_jobs(
     await session.commit()
     return recovered
 
+
 def _daily_digest_slot(
     stream: InvestmentStream, prefs, now: datetime
 ) -> tuple[object, datetime] | None:
@@ -179,13 +183,9 @@ def _daily_digest_slot(
     return local_now.date(), scheduled
 
 
-async def enqueue_due_daily_digests(
-    session: AsyncSession, *, now: datetime | None = None
-) -> int:
+async def enqueue_due_daily_digests(session: AsyncSession, *, now: datetime | None = None) -> int:
     now = now or datetime.now(UTC)
-    prefs = await session.scalar(
-        select(NotificationPreference).limit(1)
-    )
+    prefs = await session.scalar(select(NotificationPreference).limit(1))
     if prefs is None or not prefs.daily_summary_enabled:
         return 0
     streams = (
@@ -245,3 +245,37 @@ async def enqueue_due_daily_digests(
             )
     await session.commit()
     return created
+
+
+def _market_retention_slot(now: datetime) -> date | None:
+    """Run once per UTC day, after 03:15, so it is off the monitor hot path."""
+    scheduled = now.replace(hour=3, minute=15, second=0, microsecond=0)
+    if now < scheduled:
+        return None
+    return now.date()
+
+
+async def enqueue_due_market_retention(
+    session: AsyncSession, *, now: datetime | None = None
+) -> int:
+    now = now or datetime.now(UTC)
+    slot = _market_retention_slot(now)
+    if slot is None:
+        return 0
+    dedupe_key = f"market-retention:{slot.isoformat()}"
+    existing = await session.scalar(select(Job).where(Job.dedupe_key == dedupe_key))
+    if existing is not None:
+        return 0
+    inserted = await enqueue(
+        session,
+        kind=MARKET_RETENTION,
+        payload={"date": slot.isoformat()},
+        dedupe_key=dedupe_key,
+        scheduled_at=now,
+        priority=200,
+        max_attempts=3,
+    )
+    if inserted:
+        logger.info("scheduled market retention date=%s", slot)
+    await session.commit()
+    return int(inserted)

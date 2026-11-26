@@ -47,6 +47,14 @@ class Settings(BaseSettings):
     worker_job_batch: int = 3
     stale_job_minutes: int = 30
 
+    # Market data retention. Raw candles are the source of truth; these limits
+    # only bound how much history stays queryable after the fact.
+    market_retention_enabled: bool = True
+    market_candle_retention_days_1h: int = 365
+    market_candle_retention_days_4h: int = 730
+    market_candle_retention_days_1d: int = 1825
+    market_snapshot_retention_days: int = 90
+
     @property
     def is_production(self) -> bool:
         return self.environment.lower() in {"production", "prod"}

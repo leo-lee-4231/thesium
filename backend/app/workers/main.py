@@ -10,6 +10,7 @@ from app.workers.runner import JobRunner
 from app.workers.scheduler import (
     claim_jobs,
     enqueue_due_daily_digests,
+    enqueue_due_market_retention,
     enqueue_due_monitors,
     recover_stale_jobs,
 )
@@ -21,6 +22,7 @@ async def _tick(runner: JobRunner, *, scheduler_enabled: bool) -> None:
     if scheduler_enabled:
         async with SessionLocal() as session:
             await enqueue_due_daily_digests(session)
+            await enqueue_due_market_retention(session)
             await enqueue_due_monitors(session)
     async with SessionLocal() as session:
         settings = get_settings()
@@ -59,9 +61,7 @@ async def run() -> None:
                 await asyncio.wait_for(stop.wait(), timeout=5)
             continue
         with contextlib.suppress(TimeoutError):
-            await asyncio.wait_for(
-                stop.wait(), timeout=max(5, settings.worker_poll_seconds)
-            )
+            await asyncio.wait_for(stop.wait(), timeout=max(5, settings.worker_poll_seconds))
     logger.info("thesium worker stopped")
 
 

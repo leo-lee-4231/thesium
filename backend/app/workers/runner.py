@@ -6,9 +6,15 @@ from uuid import UUID
 
 from app.agent.runtime import AgentError, AgentRuntime
 from app.application.digest_service import DigestService
-from app.application.job_service import DAILY_DIGEST, MONITOR_ANALYSIS, NOTIFICATION_SEND
+from app.application.job_service import (
+    DAILY_DIGEST,
+    MARKET_RETENTION,
+    MONITOR_ANALYSIS,
+    NOTIFICATION_SEND,
+)
 from app.application.market_service import MarketService
 from app.application.notification_service import NotificationService
+from app.application.retention_service import RetentionService
 from app.db.models import Asset, InvestmentStream, Job
 from app.db.session import SessionLocal
 from app.infrastructure.market.factory import create_provider
@@ -32,6 +38,8 @@ class JobRunner:
                     await self._run_daily_digest(session, job)
                 elif job.kind == NOTIFICATION_SEND:
                     retry_at = await self._run_notification(session, job)
+                elif job.kind == MARKET_RETENTION:
+                    await self._run_market_retention(session)
                 else:
                     raise RuntimeError(f"unknown job kind: {job.kind}")
             except Exception as exc:  # noqa: BLE001 - jobs must record every failure
@@ -95,6 +103,10 @@ class JobRunner:
             )
         finally:
             await provider.close()
+
+    async def _run_market_retention(self, session) -> None:
+        deleted = await RetentionService(session).run()
+        logger.info("market retention deleted", extra={"deleted": deleted})
 
     async def _run_notification(self, session, job: Job) -> datetime | None:
         notification_id = (job.payload or {}).get("notification_id")
