@@ -42,8 +42,7 @@ class MonitorContext:
     thesis: InvestmentThesis | None
     quote: Any
     indicators: dict[str, dict[str, object]]
-    recent_candles: dict[str, list[dict[str, object]]]
-    rsi_history: dict[str, list[dict[str, object]]]
+    recent_bars: dict[str, list[dict[str, object]]]
     derivatives: Any | None
     spot_position: dict[str, Any]
     derivative_position: dict[str, Any] | None
@@ -102,10 +101,31 @@ def candle_dict(candle: Any) -> dict[str, object]:
     }
 
 
-def recent_candle_payload(candles: list[Any], limit: int) -> list[dict[str, object]]:
+def recent_bar_payload(
+    candles: list[Any], indicators: list[dict[str, object]], limit: int
+) -> list[dict[str, object]]:
+    """Merge OHLCV and indicator values into one row per bar."""
     if limit <= 0:
         return []
-    return [candle_dict(candle) for candle in candles[-limit:]]
+    indicators_by_time = {str(item.get("open_time")): item for item in indicators}
+    rows: list[dict[str, object]] = []
+    for candle in candles[-limit:]:
+        row = candle_dict(candle)
+        indicator = indicators_by_time.get(str(row["open_time"]), {})
+        for key in (
+            "ema20",
+            "ema50",
+            "rsi14",
+            "macd",
+            "macd_signal",
+            "macd_hist",
+            "volatility_pct",
+            "trend",
+        ):
+            if key in indicator:
+                row[key] = indicator[key]
+        rows.append(row)
+    return rows
 
 
 def derivatives_dict(overview: Any) -> dict[str, object]:
@@ -196,18 +216,17 @@ async def build_monitor_context(
     indicators = await market.indicators(
         asset.symbol, [Timeframe.H1, Timeframe.H4, Timeframe.D1], "SPOT"
     )
-    recent_candles: dict[str, list[dict[str, object]]] = {}
-    rsi_history: dict[str, list[dict[str, object]]] = {}
+    recent_bars: dict[str, list[dict[str, object]]] = {}
     for timeframe, limit in (
         (Timeframe.H1, 24),
         (Timeframe.H4, 18),
         (Timeframe.D1, 14),
     ):
         bars = await market.recent_candles(asset.symbol, timeframe, limit, "SPOT")
-        recent_candles[timeframe.value] = recent_candle_payload(bars, limit)
-        rsi_history[timeframe.value] = await market.rsi_history(
+        indicators_for_bars = await market.indicator_history(
             asset.symbol, timeframe, limit, "SPOT"
         )
+        recent_bars[timeframe.value] = recent_bar_payload(bars, indicators_for_bars, limit)
 
     derivatives = None
     try:
@@ -249,8 +268,7 @@ async def build_monitor_context(
         "market": {
             "quote": quote_dict(quote),
             "indicators": indicators,
-            "recent_candles": recent_candles,
-            "rsi_history": rsi_history,
+            "recent_bars": recent_bars,
             "derivatives": derivatives_dict(derivatives) if derivatives else None,
         },
         "thesis": thesis_dict(thesis) if thesis is not None else None,
@@ -297,8 +315,7 @@ async def build_monitor_context(
         thesis=thesis,
         quote=quote,
         indicators=indicators,
-        recent_candles=recent_candles,
-        rsi_history=rsi_history,
+        recent_bars=recent_bars,
         derivatives=derivatives,
         spot_position=spot_position,
         derivative_position=derivative_position,
@@ -329,17 +346,10 @@ def source_list(ctx: MonitorContext) -> list[dict[str, object]]:
             "as_of": ctx.indicators.get("1h", {}).get("as_of"),
         },
         {
-            "tool": "get_recent_candles",
-            "label": "最近 1h/4h/1d K 线",
-            "as_of": ctx.recent_candles.get("1h", [{}])[-1].get("open_time")
-            if ctx.recent_candles.get("1h")
-            else None,
-        },
-        {
-            "tool": "get_rsi_history",
-            "label": "最近 1h/4h/1d RSI 序列",
-            "as_of": ctx.rsi_history.get("1h", [{}])[-1].get("open_time")
-            if ctx.rsi_history.get("1h")
+            "tool": "get_recent_bars",
+            "label": "最近 1h/4h/1d K线+指标",
+            "as_of": ctx.recent_bars.get("1h", [{}])[-1].get("open_time")
+            if ctx.recent_bars.get("1h")
             else None,
         },
         {

@@ -15,7 +15,7 @@ from app.infrastructure.market.base import (
     Quote,
     Timeframe,
 )
-from app.infrastructure.market.indicators import build_indicator_snapshot, build_rsi_history
+from app.infrastructure.market.indicators import build_indicator_history, build_indicator_snapshot
 
 logger = logging.getLogger(__name__)
 
@@ -91,16 +91,16 @@ class MarketService:
         candles = await self.candles(symbol, timeframe, 220, market_type)
         return candles[-limit:]
 
-    async def rsi_history(
+    async def indicator_history(
         self,
         symbol: str,
         timeframe: Timeframe,
         limit: int = 24,
         market_type: str = "SPOT",
     ) -> list[dict[str, object]]:
-        """Return recent RSI values computed from the full 220-bar window."""
+        """Return recent indicator values computed from the full 220-bar window."""
         candles = await self.candles(symbol, timeframe, 220, market_type)
-        return build_rsi_history(candles, limit)
+        return build_indicator_history(candles, limit)
 
     async def derivatives(self, symbol: str) -> DerivativesOverview:
         instrument = await self._instrument(symbol, "SWAP")

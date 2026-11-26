@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-from app.agent.context import candle_dict, recent_candle_payload
+from app.agent.context import candle_dict, recent_bar_payload
 from app.infrastructure.market.base import Candle
 
 
@@ -17,6 +17,21 @@ def make_candle(index: int, close: str = "58000") -> Candle:
     )
 
 
+def make_indicator(candle: Candle, rsi: float) -> dict[str, object]:
+    return {
+        "open_time": candle.open_time.isoformat(),
+        "close": str(candle.close),
+        "ema20": "58100",
+        "ema50": "57900",
+        "rsi14": rsi,
+        "macd": "12.5",
+        "macd_signal": "10.0",
+        "macd_hist": "2.5",
+        "volatility_pct": "0.02",
+        "trend": "UP",
+    }
+
+
 def test_candle_dict_serializes_ohlc() -> None:
     payload = candle_dict(make_candle(0))
     assert payload["open_time"] == "2026-11-01T00:00:00+00:00"
@@ -28,12 +43,16 @@ def test_candle_dict_serializes_ohlc() -> None:
     assert payload["confirmed"] is True
 
 
-def test_recent_candle_payload_keeps_latest_bars() -> None:
+def test_recent_bar_payload_merges_ohlc_and_indicators() -> None:
     candles = [make_candle(index, str(57000 + index)) for index in range(20)]
-    payload = recent_candle_payload(candles, 3)
+    indicators = [make_indicator(candle, float(index)) for index, candle in enumerate(candles)]
+    payload = recent_bar_payload(candles, indicators, 3)
     assert len(payload) == 3
     assert [item["close"] for item in payload] == ["57017", "57018", "57019"]
+    assert [item["rsi14"] for item in payload] == [17.0, 18.0, 19.0]
+    assert payload[-1]["trend"] == "UP"
+    assert payload[-1]["ema20"] == "58100"
 
 
-def test_recent_candle_payload_zero_limit() -> None:
-    assert recent_candle_payload([make_candle(0)], 0) == []
+def test_recent_bar_payload_zero_limit() -> None:
+    assert recent_bar_payload([make_candle(0)], [], 0) == []

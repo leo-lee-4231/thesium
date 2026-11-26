@@ -89,21 +89,47 @@ def _round(value: float | None, digits: int = 4) -> float | None:
     return None if value is None else round(value, digits)
 
 
-def build_rsi_history(
+def _trend(close: float | None, ema20: float | None, ema50: float | None) -> str:
+    if close is None or ema20 is None or ema50 is None:
+        return "UNKNOWN"
+    if close > ema20 > ema50:
+        return "UP"
+    if close < ema20 < ema50:
+        return "DOWN"
+    return "SIDEWAYS"
+
+
+def build_indicator_history(
     candles: Sequence[Candle], limit: int = 24
 ) -> list[dict[str, object]]:
-    """Serialize the recent RSI path, aligned by candle open_time."""
+    """Serialize the recent indicator path, aligned by candle open_time."""
     if limit <= 0 or not candles:
         return []
+
     closes = [float(candle.close) for candle in candles]
-    values = rsi(closes, 14)
-    return [
-        {
-            "open_time": candle.open_time.isoformat(),
-            "rsi14": _round(value),
-        }
-        for candle, value in zip(candles[-limit:], values[-limit:], strict=True)
-    ]
+    ema20 = ema(closes, 20)
+    ema50 = ema(closes, 50)
+    rsi14 = rsi(closes, 14)
+    macd_line, signal_line, histogram = macd(closes)
+    vol20 = volatility(closes, 20)
+
+    rows: list[dict[str, object]] = []
+    for index in range(max(0, len(candles) - limit), len(candles)):
+        rows.append(
+            {
+                "open_time": candles[index].open_time.isoformat(),
+                "close": _round(closes[index]),
+                "ema20": _round(ema20[index]),
+                "ema50": _round(ema50[index]),
+                "rsi14": _round(rsi14[index]),
+                "macd": _round(macd_line[index]),
+                "macd_signal": _round(signal_line[index]),
+                "macd_hist": _round(histogram[index]),
+                "volatility_pct": _round(vol20[index]),
+                "trend": _trend(closes[index], ema20[index], ema50[index]),
+            }
+        )
+    return rows
 
 
 def build_indicator_snapshot(candles: Sequence[Candle]) -> dict[str, object]:
@@ -126,14 +152,7 @@ def build_indicator_snapshot(candles: Sequence[Candle]) -> dict[str, object]:
     last_ema20 = ema20[-1]
     last_ema50 = ema50[-1]
     close = closes[-1]
-    trend = "UNKNOWN"
-    if last_ema20 is not None and last_ema50 is not None:
-        if close > last_ema20 > last_ema50:
-            trend = "UP"
-        elif close < last_ema20 < last_ema50:
-            trend = "DOWN"
-        else:
-            trend = "SIDEWAYS"
+    trend = _trend(close, last_ema20, last_ema50)
 
     warnings: list[str] = []
     if bars < 50:

@@ -3,8 +3,8 @@ from decimal import Decimal
 
 from app.infrastructure.market.base import Candle
 from app.infrastructure.market.indicators import (
+    build_indicator_history,
     build_indicator_snapshot,
-    build_rsi_history,
     ema,
     macd,
     rsi,
@@ -75,17 +75,31 @@ def test_snapshot_insufficient() -> None:
     snapshot = build_indicator_snapshot(make_candles([100.0, 101.0]))
     assert snapshot["status"] == "INSUFFICIENT"
 
-def test_build_rsi_history_is_aligned_and_limited() -> None:
-    candles = make_candles([float(index) for index in range(1, 40)])
-    history = build_rsi_history(candles, 3)
+def test_build_indicator_history_is_aligned_and_has_all_indicators() -> None:
+    candles = make_candles([float(index) for index in range(1, 80)])
+    history = build_indicator_history(candles, 3)
     assert len(history) == 3
     assert [item["open_time"] for item in history] == [
         candles[-3].open_time.isoformat(),
         candles[-2].open_time.isoformat(),
         candles[-1].open_time.isoformat(),
     ]
+    assert set(history[-1]) == {
+        "open_time",
+        "close",
+        "ema20",
+        "ema50",
+        "rsi14",
+        "macd",
+        "macd_signal",
+        "macd_hist",
+        "volatility_pct",
+        "trend",
+    }
     assert history[-1]["rsi14"] == 100.0
+    assert history[-1]["trend"] == "UP"
 
 
-def test_build_rsi_history_zero_limit() -> None:
-    assert build_rsi_history(make_candles([100.0, 101.0]), 0) == []
+def test_build_indicator_history_zero_limit() -> None:
+    assert build_indicator_history(make_candles([100.0, 101.0]), 0) == []
+
