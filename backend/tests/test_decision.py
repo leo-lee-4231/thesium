@@ -1,4 +1,4 @@
-from app.domain.decision import DecisionOutput, Evidence, validate_decision
+from app.domain.decision import DecisionOutput, Evidence, PositionImpact, validate_decision
 
 
 def base_output(**overrides):  # type: ignore[no-untyped-def]
@@ -116,3 +116,13 @@ def test_evidence_strength_accepts_medium_and_low_aliases() -> None:
 def test_decision_accepts_high_evidence_strength() -> None:
     output = base_output(evidence_for=[{"claim": "x", "strength": "HIGH"}])
     assert output.evidence_for[0].strength == "STRONG"
+
+
+def test_position_impact_accepts_no_position_no_exposure_alias() -> None:
+    impact = PositionImpact(assessment="NO_POSITION_NO_EXPOSURE")
+    assert impact.assessment == "NO_POSITION"
+
+
+def test_position_impact_normalizes_lowercase_and_spaces() -> None:
+    impact = PositionImpact(assessment="existing position aligned")
+    assert impact.assessment == "EXISTING_POSITION_ALIGNED"

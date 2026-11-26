@@ -35,7 +35,7 @@ Thesis 规则：
 - evidence_for / evidence_against: [{claim, kind(FACT|INFERENCE), source_tool, as_of, strength(STRONG|MODERATE|WEAK，不要用 HIGH/MEDIUM/LOW)}]
 - market.recent_bars: {1h: [...], 4h: [...], 1d: [...]}，每项含 open_time/open/high/low/close/volume/confirmed/ema20/ema50/rsi14/macd/macd_signal/macd_hist/volatility_pct/trend
 - thesis_alignment: {status(ALIGNED|PARTIALLY_ALIGNED|CONFLICTING|UNKNOWN), explanation, conflicting_fields}
-- position_impact: {assessment, exposure_usd, unrealized_pnl_usd, risk_budget_usage_pct, notes}
+- position_impact: {assessment(NO_POSITION|EXISTING_POSITION_ALIGNED|EXISTING_POSITION_EXPOSED_TO_DOWNSIDE|EXISTING_POSITION_UNDERUTILIZED|RISK_BUDGET_EXCEEDED), exposure_usd, unrealized_pnl_usd, risk_budget_usage_pct, notes}
 - derivative_recommendation: null 或 {action, size_change_pct, rationale, invalidation_conditions, stop_loss:{price, source(USER|DERIVED), risk_amount_usd, risk_pct_equity, distance_pct, warnings}}
 - changes_since_previous: [{field, before, after, reason}] 或 []
 - invalidation_conditions: [{condition, threshold, monitorable}] 或 []

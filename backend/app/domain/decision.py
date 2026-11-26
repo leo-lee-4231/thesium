@@ -68,6 +68,23 @@ class PositionImpact(BaseModel):
     risk_budget_usage_pct: str | None = None
     notes: str | None = None
 
+    @field_validator("assessment", mode="before")
+    @classmethod
+    def normalize_assessment(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        normalized = value.strip().upper().replace("-", "_").replace(" ", "_")
+        aliases = {
+            "NO_POSITION_NO_EXPOSURE": "NO_POSITION",
+            "NO_EXPOSURE": "NO_POSITION",
+            "FLAT": "NO_POSITION",
+            "POSITION_ALIGNED": "EXISTING_POSITION_ALIGNED",
+            "EXISTING_POSITION": "EXISTING_POSITION_ALIGNED",
+            "POSITION_EXPOSED": "EXISTING_POSITION_EXPOSED_TO_DOWNSIDE",
+            "POSITION_UNDERUTILIZED": "EXISTING_POSITION_UNDERUTILIZED",
+        }
+        return aliases.get(normalized, normalized)
+
 
 class StopLossPlan(BaseModel):
     model_config = ConfigDict(extra="ignore")
