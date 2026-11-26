@@ -620,6 +620,12 @@ export interface OpsStatus {
     news_enabled: boolean
   }
   config: { email_configured: boolean; llm_configured: boolean }
+  maintenance: {
+    market_retention: {
+      enabled: boolean
+      last: (OpsJobSummary & { deleted?: Record<string, number> }) | null
+    }
+  }
   recent_runs: OpsRunSummary[]
 }
 

@@ -13,6 +13,7 @@ const digestError = ref<string | null>(null)
 
 const stream = computed(() => status.value?.stream ?? null)
 const digest = computed(() => status.value?.daily_digest ?? null)
+const retention = computed(() => status.value?.maintenance.market_retention ?? null)
 
 function fmt(value: string | null | undefined): string {
   if (!value) return '—'
@@ -156,6 +157,28 @@ onMounted(() => {
           <h2>{{ status.jobs.failed_24h }} failed / 24h</h2>
           <p class="muted">{{ counts(status.jobs.last_24h) }}</p>
           <div class="ops-row"><span>待处理 + 运行中</span><strong>{{ status.jobs.pending_or_running }}</strong></div>
+        </article>
+
+        <article class="ops-card">
+          <header>
+            <span class="card-kicker">Maintenance</span>
+            <span class="ops-status" :class="retention?.enabled ? 'ok' : 'bad'">
+              {{ retention?.enabled ? 'DAILY' : 'OFF' }}
+            </span>
+          </header>
+          <h2>{{ retention?.last?.status ?? '未运行' }}</h2>
+          <p class="muted">每天 03:15 UTC 清理过期市场数据</p>
+          <div class="ops-row">
+            <span>最近执行</span>
+            <strong>{{ fmt(retention?.last?.finished_at) }}</strong>
+          </div>
+          <div class="ops-row">
+            <span>删除</span>
+            <strong>{{ counts(retention?.last?.deleted) }}</strong>
+          </div>
+          <p v-if="retention?.last?.last_error" class="warning-inline">
+            {{ retention.last.last_error }}
+          </p>
         </article>
 
         <article class="ops-card">

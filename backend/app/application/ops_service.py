@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.email_service import EmailSettingsError, EmailSettingsService
+from app.application.job_service import MARKET_RETENTION
 from app.application.llm_provider_service import LLMProviderError, LLMProviderService
 from app.core.config import get_settings
 from app.db.models import (
@@ -64,11 +65,21 @@ class OpsService:
     ) -> dict[str, object]:
         now = now or datetime.now(UTC)
         stream = await self._stream(stream_id)
+        latest_retention = await self._session.scalar(
+            select(Job).where(Job.kind == MARKET_RETENTION).order_by(Job.created_at.desc()).limit(1)
+        )
+        maintenance = {
+            "market_retention": {
+                "enabled": get_settings().market_retention_enabled,
+                "last": _retention_dict(latest_retention),
+            }
+        }
         if stream is None:
             return {
                 "scheduler_enabled": get_settings().scheduler_enabled,
                 "stream": None,
                 "message": "没有 ACTIVE 投资产品",
+                "maintenance": maintenance,
             }
 
         since_24h = now - timedelta(hours=24)
@@ -87,9 +98,7 @@ class OpsService:
             since=since_7d,
             time_column=AgentRun.started_at,
         )
-        jobs_24h = await _counts_by_status(
-            self._session, Job, stream_id=stream.id, since=since_24h
-        )
+        jobs_24h = await _counts_by_status(self._session, Job, stream_id=stream.id, since=since_24h)
         notifications_7d = await _counts_by_status(
             self._session, Notification, stream_id=stream.id, since=since_7d
         )
@@ -235,6 +244,7 @@ class OpsService:
                 "email_configured": email_configured,
                 "llm_configured": llm_configured,
             },
+            "maintenance": maintenance,
             "recent_runs": [_run_dict(run) for run in recent_runs],
         }
 
@@ -252,6 +262,15 @@ def _run_dict(run: AgentRun | None) -> dict[str, object] | None:
         "error_message": run.error_message,
         "started_at": run.started_at,
         "finished_at": run.finished_at,
+    }
+
+
+def _retention_dict(job: Job | None) -> dict[str, object] | None:
+    if job is None:
+        return None
+    return {
+        **_job_dict(job),
+        "deleted": (job.payload or {}).get("deleted", {}),
     }
 
 

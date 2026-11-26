@@ -39,7 +39,7 @@ class JobRunner:
                 elif job.kind == NOTIFICATION_SEND:
                     retry_at = await self._run_notification(session, job)
                 elif job.kind == MARKET_RETENTION:
-                    await self._run_market_retention(session)
+                    await self._run_market_retention(session, job)
                 else:
                     raise RuntimeError(f"unknown job kind: {job.kind}")
             except Exception as exc:  # noqa: BLE001 - jobs must record every failure
@@ -104,8 +104,9 @@ class JobRunner:
         finally:
             await provider.close()
 
-    async def _run_market_retention(self, session) -> None:
+    async def _run_market_retention(self, session, job: Job) -> None:
         deleted = await RetentionService(session).run()
+        job.payload = {**(job.payload or {}), "deleted": deleted}
         logger.info("market retention deleted", extra={"deleted": deleted})
 
     async def _run_notification(self, session, job: Job) -> datetime | None:
