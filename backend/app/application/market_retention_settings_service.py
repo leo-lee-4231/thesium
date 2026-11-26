@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import Settings, get_settings
 from app.core.users import LOCAL_USER_EMAIL
 from app.db.models import MarketRetentionSettings, User
 
@@ -26,15 +25,17 @@ class RetentionSettingsError(Exception):
         self.message = message
 
 
-def default_policy(settings: Settings | None = None) -> RetentionPolicy:
-    settings = settings or get_settings()
-    return RetentionPolicy(
-        enabled=settings.market_retention_enabled,
-        candle_1h_days=settings.market_candle_retention_days_1h,
-        candle_4h_days=settings.market_candle_retention_days_4h,
-        candle_1d_days=settings.market_candle_retention_days_1d,
-        snapshot_days=settings.market_snapshot_retention_days,
-    )
+DEFAULT_RETENTION_POLICY = RetentionPolicy(
+    enabled=True,
+    candle_1h_days=365,
+    candle_4h_days=730,
+    candle_1d_days=1825,
+    snapshot_days=90,
+)
+
+
+def default_policy() -> RetentionPolicy:
+    return DEFAULT_RETENTION_POLICY
 
 
 def validate_policy(policy: RetentionPolicy) -> RetentionPolicy:

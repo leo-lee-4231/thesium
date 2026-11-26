@@ -3,6 +3,7 @@ from datetime import UTC, date, datetime
 import pytest
 
 from app.application.market_retention_settings_service import (
+    DEFAULT_RETENTION_POLICY,
     RetentionPolicy,
     RetentionSettingsError,
     validate_policy,
@@ -56,3 +57,11 @@ def test_retention_policy_rejects_invalid_snapshot_window() -> None:
                 snapshot_days=0,
             )
         )
+
+
+def test_retention_defaults_are_built_in() -> None:
+    assert DEFAULT_RETENTION_POLICY.enabled is True
+    assert DEFAULT_RETENTION_POLICY.candle_1h_days == 365
+    assert DEFAULT_RETENTION_POLICY.candle_4h_days == 730
+    assert DEFAULT_RETENTION_POLICY.candle_1d_days == 1825
+    assert DEFAULT_RETENTION_POLICY.snapshot_days == 90
