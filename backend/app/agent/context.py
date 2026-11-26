@@ -43,6 +43,7 @@ class MonitorContext:
     quote: Any
     indicators: dict[str, dict[str, object]]
     recent_candles: dict[str, list[dict[str, object]]]
+    rsi_history: dict[str, list[dict[str, object]]]
     derivatives: Any | None
     spot_position: dict[str, Any]
     derivative_position: dict[str, Any] | None
@@ -196,6 +197,7 @@ async def build_monitor_context(
         asset.symbol, [Timeframe.H1, Timeframe.H4, Timeframe.D1], "SPOT"
     )
     recent_candles: dict[str, list[dict[str, object]]] = {}
+    rsi_history: dict[str, list[dict[str, object]]] = {}
     for timeframe, limit in (
         (Timeframe.H1, 24),
         (Timeframe.H4, 18),
@@ -203,6 +205,9 @@ async def build_monitor_context(
     ):
         bars = await market.recent_candles(asset.symbol, timeframe, limit, "SPOT")
         recent_candles[timeframe.value] = recent_candle_payload(bars, limit)
+        rsi_history[timeframe.value] = await market.rsi_history(
+            asset.symbol, timeframe, limit, "SPOT"
+        )
 
     derivatives = None
     try:
@@ -245,6 +250,7 @@ async def build_monitor_context(
             "quote": quote_dict(quote),
             "indicators": indicators,
             "recent_candles": recent_candles,
+            "rsi_history": rsi_history,
             "derivatives": derivatives_dict(derivatives) if derivatives else None,
         },
         "thesis": thesis_dict(thesis) if thesis is not None else None,
@@ -292,6 +298,7 @@ async def build_monitor_context(
         quote=quote,
         indicators=indicators,
         recent_candles=recent_candles,
+        rsi_history=rsi_history,
         derivatives=derivatives,
         spot_position=spot_position,
         derivative_position=derivative_position,
@@ -326,6 +333,13 @@ def source_list(ctx: MonitorContext) -> list[dict[str, object]]:
             "label": "最近 1h/4h/1d K 线",
             "as_of": ctx.recent_candles.get("1h", [{}])[-1].get("open_time")
             if ctx.recent_candles.get("1h")
+            else None,
+        },
+        {
+            "tool": "get_rsi_history",
+            "label": "最近 1h/4h/1d RSI 序列",
+            "as_of": ctx.rsi_history.get("1h", [{}])[-1].get("open_time")
+            if ctx.rsi_history.get("1h")
             else None,
         },
         {

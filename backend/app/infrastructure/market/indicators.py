@@ -89,6 +89,23 @@ def _round(value: float | None, digits: int = 4) -> float | None:
     return None if value is None else round(value, digits)
 
 
+def build_rsi_history(
+    candles: Sequence[Candle], limit: int = 24
+) -> list[dict[str, object]]:
+    """Serialize the recent RSI path, aligned by candle open_time."""
+    if limit <= 0 or not candles:
+        return []
+    closes = [float(candle.close) for candle in candles]
+    values = rsi(closes, 14)
+    return [
+        {
+            "open_time": candle.open_time.isoformat(),
+            "rsi14": _round(value),
+        }
+        for candle, value in zip(candles[-limit:], values[-limit:], strict=True)
+    ]
+
+
 def build_indicator_snapshot(candles: Sequence[Candle]) -> dict[str, object]:
     bars = len(candles)
     if bars < 20:
