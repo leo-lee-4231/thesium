@@ -254,3 +254,11 @@ class ChatMessageCreate(BaseModel):
 class NetworkSettingsUpdate(BaseModel):
     market_proxy_enabled: bool = False
     market_proxy_url: str | None = Field(default=None, max_length=500)
+
+
+class MarketRetentionUpdate(BaseModel):
+    enabled: bool = True
+    candle_1h_days: int = Field(default=365, ge=1, le=3650)
+    candle_4h_days: int = Field(default=730, ge=1, le=3650)
+    candle_1d_days: int = Field(default=1825, ge=1, le=7300)
+    snapshot_days: int = Field(default=90, ge=1, le=3650)

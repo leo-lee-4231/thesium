@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 
-import { api, type OpsStatus } from '@/api/client'
+import { api, type OpsStatus, type RetentionSettings } from '@/api/client'
 import BackButton from '@/components/BackButton.vue'
 
 const status = ref<OpsStatus | null>(null)
@@ -10,10 +10,31 @@ const error = ref<string | null>(null)
 const digestRunning = ref(false)
 const digestMessage = ref<string | null>(null)
 const digestError = ref<string | null>(null)
+const retentionSettings = ref<RetentionSettings | null>(null)
+const retentionSaving = ref(false)
+const retentionMessage = ref<string | null>(null)
+const retentionError = ref<string | null>(null)
+const retentionDraft = ref({
+  enabled: true,
+  candle_1h_days: 365,
+  candle_4h_days: 730,
+  candle_1d_days: 1825,
+  snapshot_days: 90,
+})
 
 const stream = computed(() => status.value?.stream ?? null)
 const digest = computed(() => status.value?.daily_digest ?? null)
 const retention = computed(() => status.value?.maintenance.market_retention ?? null)
+
+function syncRetentionDraft(value: RetentionSettings): void {
+  retentionDraft.value = {
+    enabled: value.enabled,
+    candle_1h_days: value.candle_1h_days,
+    candle_4h_days: value.candle_4h_days,
+    candle_1d_days: value.candle_1d_days,
+    snapshot_days: value.snapshot_days,
+  }
+}
 
 function fmt(value: string | null | undefined): string {
   if (!value) return '—'
@@ -43,6 +64,12 @@ async function load(): Promise<void> {
   error.value = null
   try {
     status.value = await api.opsStatus()
+    try {
+      retentionSettings.value = await api.retentionStatus()
+    } catch {
+      retentionSettings.value = status.value.maintenance.market_retention
+    }
+    if (retentionSettings.value) syncRetentionDraft(retentionSettings.value)
   } catch (caught) {
     error.value = caught instanceof Error ? caught.message : '系统状态加载失败'
   } finally {
@@ -66,6 +93,22 @@ async function runDigest(): Promise<void> {
     digestError.value = caught instanceof Error ? caught.message : '日报发送失败'
   } finally {
     digestRunning.value = false
+  }
+}
+
+async function saveRetention(): Promise<void> {
+  retentionSaving.value = true
+  retentionError.value = null
+  retentionMessage.value = null
+  try {
+    retentionSettings.value = await api.saveRetentionSettings(retentionDraft.value)
+    syncRetentionDraft(retentionSettings.value)
+    retentionMessage.value = '回收策略已保存；下一次定时清理会使用新配置。'
+    status.value = await api.opsStatus()
+  } catch (caught) {
+    retentionError.value = caught instanceof Error ? caught.message : '保存回收策略失败'
+  } finally {
+    retentionSaving.value = false
   }
 }
 
@@ -266,6 +309,64 @@ onMounted(() => {
           <p v-else class="muted">还没有发送记录。</p>
           <p v-if="digest.last?.error" class="warning-inline">{{ digest.last.error }}</p>
         </template>
+      </section>
+
+      <section class="form-card settings-card">
+        <div class="market-head">
+          <div>
+            <p class="eyebrow">Retention policy</p>
+            <h2>市场数据保留策略</h2>
+            <p class="muted">
+              控制 K 线与行情快照的保留时间；过期数据由每日维护任务清理。
+            </p>
+          </div>
+          <span class="ops-status" :class="retentionDraft.enabled ? 'ok' : 'bad'">
+            {{ retentionDraft.enabled ? 'ENABLED' : 'DISABLED' }}
+          </span>
+        </div>
+
+        <div class="form-grid">
+          <label class="form-field checkbox">
+            <input v-model="retentionDraft.enabled" type="checkbox" />
+            <span>启用每日市场数据清理</span>
+          </label>
+
+          <label class="form-field">
+            <span>1h K 线保留天数</span>
+            <input v-model.number="retentionDraft.candle_1h_days" type="number" min="1" max="3650" />
+          </label>
+
+          <label class="form-field">
+            <span>4h K 线保留天数</span>
+            <input v-model.number="retentionDraft.candle_4h_days" type="number" min="1" max="3650" />
+          </label>
+
+          <label class="form-field">
+            <span>1d K 线保留天数</span>
+            <input v-model.number="retentionDraft.candle_1d_days" type="number" min="1" max="7300" />
+          </label>
+
+          <label class="form-field">
+            <span>行情快照保留天数</span>
+            <input v-model.number="retentionDraft.snapshot_days" type="number" min="1" max="3650" />
+          </label>
+        </div>
+
+        <p class="muted">
+          必须满足 1h ≤ 4h ≤ 1d；默认值来自环境变量，保存后以数据库设置为准。
+          <span v-if="retentionSettings">
+            当前来源：{{ retentionSettings.source === 'database' ? '数据库' : '环境变量默认值' }}
+          </span>
+        </p>
+
+        <div class="form-actions">
+          <button class="primary-button" type="button" :disabled="retentionSaving" @click="saveRetention">
+            {{ retentionSaving ? '保存中…' : '保存回收策略' }}
+          </button>
+        </div>
+
+        <p v-if="retentionError" class="error">{{ retentionError }}</p>
+        <p v-if="retentionMessage" class="notice">{{ retentionMessage }}</p>
       </section>
 
       <section class="panel">

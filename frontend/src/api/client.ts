@@ -581,6 +581,23 @@ export interface OpsJobSummary {
   finished_at: string | null
 }
 
+export interface RetentionSettings {
+  enabled: boolean
+  candle_1h_days: number
+  candle_4h_days: number
+  candle_1d_days: number
+  snapshot_days: number
+  source: 'database' | 'defaults'
+  defaults: {
+    enabled: boolean
+    candle_1h_days: number
+    candle_4h_days: number
+    candle_1d_days: number
+    snapshot_days: number
+  }
+  updated_at: string | null
+}
+
 export interface OpsStatus {
   scheduler_enabled: boolean
   stream: {
@@ -621,8 +638,7 @@ export interface OpsStatus {
   }
   config: { email_configured: boolean; llm_configured: boolean }
   maintenance: {
-    market_retention: {
-      enabled: boolean
+    market_retention: RetentionSettings & {
       last: (OpsJobSummary & { deleted?: Record<string, number> }) | null
     }
   }
@@ -663,6 +679,18 @@ export const api = {
   emailStatus: () => request<EmailStatus>('/api/v1/settings/email'),
   saveEmailConfig: (payload: EmailConfigUpdate) =>
     request<EmailStatus>('/api/v1/settings/email', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  retentionStatus: () => request<RetentionSettings>('/api/v1/settings/retention'),
+  saveRetentionSettings: (payload: {
+    enabled: boolean
+    candle_1h_days: number
+    candle_4h_days: number
+    candle_1d_days: number
+    snapshot_days: number
+  }) =>
+    request<RetentionSettings>('/api/v1/settings/retention', {
       method: 'PUT',
       body: JSON.stringify(payload),
     }),

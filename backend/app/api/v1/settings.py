@@ -6,11 +6,16 @@ from app.api.v1.schemas import (
     EmailTestRequest,
     LLMConfigUpdate,
     LLMTestRequest,
+    MarketRetentionUpdate,
     NetworkSettingsUpdate,
     NotificationPreferencesUpdate,
 )
 from app.application.email_service import EmailSettingsError, EmailSettingsService
 from app.application.llm_provider_service import LLMProviderError, LLMProviderService
+from app.application.market_retention_settings_service import (
+    MarketRetentionSettingsService,
+    RetentionSettingsError,
+)
 from app.application.network_settings_service import (
     NetworkSettingsError,
     NetworkSettingsService,
@@ -190,3 +195,35 @@ async def save_network_settings(
         )
     except NetworkSettingsError as exc:
         raise _network_error(exc) from exc
+
+
+def _retention_error(exc: RetentionSettingsError) -> HTTPException:
+    status = 404 if exc.code == "NOT_FOUND" else 400
+    return HTTPException(status_code=status, detail=f"{exc.code}: {exc.message}")
+
+
+@router.get("/retention")
+async def retention_status(
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, object]:
+    try:
+        return await MarketRetentionSettingsService(session).status()
+    except RetentionSettingsError as exc:
+        raise _retention_error(exc) from exc
+
+
+@router.put("/retention")
+async def save_retention_settings(
+    payload: MarketRetentionUpdate,
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, object]:
+    try:
+        return await MarketRetentionSettingsService(session).save(
+            enabled=payload.enabled,
+            candle_1h_days=payload.candle_1h_days,
+            candle_4h_days=payload.candle_4h_days,
+            candle_1d_days=payload.candle_1d_days,
+            snapshot_days=payload.snapshot_days,
+        )
+    except RetentionSettingsError as exc:
+        raise _retention_error(exc) from exc

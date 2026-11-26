@@ -9,6 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.application.email_service import EmailSettingsError, EmailSettingsService
 from app.application.job_service import MARKET_RETENTION
 from app.application.llm_provider_service import LLMProviderError, LLMProviderService
+from app.application.market_retention_settings_service import (
+    MarketRetentionSettingsService,
+)
 from app.core.config import get_settings
 from app.db.models import (
     AgentRun,
@@ -68,9 +71,10 @@ class OpsService:
         latest_retention = await self._session.scalar(
             select(Job).where(Job.kind == MARKET_RETENTION).order_by(Job.created_at.desc()).limit(1)
         )
+        retention_settings = await MarketRetentionSettingsService(self._session).status()
         maintenance = {
             "market_retention": {
-                "enabled": get_settings().market_retention_enabled,
+                **retention_settings,
                 "last": _retention_dict(latest_retention),
             }
         }

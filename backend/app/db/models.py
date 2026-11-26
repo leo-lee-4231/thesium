@@ -742,6 +742,32 @@ class NetworkSettings(Base):
     )
 
 
+class MarketRetentionSettings(Base):
+    __tablename__ = "market_retention_settings"
+
+    user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id"), primary_key=True
+    )
+    enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    candle_1h_days: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=365, server_default="365"
+    )
+    candle_4h_days: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=730, server_default="730"
+    )
+    candle_1d_days: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1825, server_default="1825"
+    )
+    snapshot_days: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=90, server_default="90"
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
 class NewsArticle(Base):
     __tablename__ = "news_articles"
 
