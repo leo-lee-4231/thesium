@@ -9,6 +9,7 @@ import {
   type NetworkStatus,
   type NotificationPreferences,
   type OkxCheckResult,
+  type RetentionSettings,
 } from '@/api/client'
 
 const status = ref<LLMStatus | null>(null)
@@ -53,6 +54,18 @@ const prefs = ref<NotificationPreferences | null>(null)
 const prefsSaving = ref(false)
 const prefsError = ref<string | null>(null)
 const prefsNotice = ref<string | null>(null)
+
+const retention = ref<RetentionSettings | null>(null)
+const retentionDraft = ref({
+  enabled: true,
+  candle_1h_days: 365,
+  candle_4h_days: 730,
+  candle_1d_days: 1825,
+  snapshot_days: 90,
+})
+const retentionSaving = ref(false)
+const retentionError = ref<string | null>(null)
+const retentionNotice = ref<string | null>(null)
 
 const networkSourceLabel = computed(() => {
   if (!network.value) return '—'
@@ -120,10 +133,29 @@ async function loadPrefs(): Promise<void> {
   }
 }
 
+function syncRetentionDraft(value: RetentionSettings): void {
+  retentionDraft.value = {
+    enabled: value.enabled,
+    candle_1h_days: value.candle_1h_days,
+    candle_4h_days: value.candle_4h_days,
+    candle_1d_days: value.candle_1d_days,
+    snapshot_days: value.snapshot_days,
+  }
+}
+
+async function loadRetention(): Promise<void> {
+  try {
+    retention.value = await api.retentionStatus()
+    syncRetentionDraft(retention.value)
+  } catch (caught) {
+    retentionError.value = caught instanceof Error ? caught.message : '回收策略加载失败'
+  }
+}
+
 async function load(): Promise<void> {
   loading.value = true
   error.value = null
-  await Promise.all([loadLlm(), loadEmail(), loadNetwork(), loadPrefs()])
+  await Promise.all([loadLlm(), loadEmail(), loadNetwork(), loadPrefs(), loadRetention()])
   loading.value = false
 }
 
@@ -260,6 +292,21 @@ async function testMarket(): Promise<void> {
     networkError.value = caught instanceof Error ? caught.message : '行情连接测试失败'
   } finally {
     probeLoading.value = false
+  }
+}
+
+async function saveRetention(): Promise<void> {
+  retentionSaving.value = true
+  retentionError.value = null
+  retentionNotice.value = null
+  try {
+    retention.value = await api.saveRetentionSettings(retentionDraft.value)
+    syncRetentionDraft(retention.value)
+    retentionNotice.value = '回收策略已保存；下一次定时清理会使用新配置。'
+  } catch (caught) {
+    retentionError.value = caught instanceof Error ? caught.message : '保存回收策略失败'
+  } finally {
+    retentionSaving.value = false
   }
 }
 
@@ -548,6 +595,60 @@ onMounted(() => {
       测试使用当前表单值，不会保存；保存后通知才会使用新配置。邮件只包含决策摘要与 Web 链接，
       不含 API Key 或完整 Prompt；失败会按 1/5/30 分钟重试，最多 3 次。
     </p>
+  </section>
+
+  <section v-if="retention" class="form-card settings-card">
+    <header class="settings-card-head">
+      <div>
+        <p class="eyebrow">Market retention</p>
+        <h2>市场数据保留策略</h2>
+        <p class="muted">控制 K 线与行情快照的保留时间；过期数据由每日维护任务清理。</p>
+      </div>
+      <span class="status-pill" :class="{ active: retentionDraft.enabled }">
+        {{ retentionDraft.enabled ? 'ENABLED' : 'DISABLED' }}
+      </span>
+    </header>
+
+    <div class="form-grid">
+      <label class="form-field checkbox">
+        <input v-model="retentionDraft.enabled" type="checkbox" />
+        <span>启用每日市场数据清理</span>
+      </label>
+
+      <label class="form-field">
+        <span>1h K 线保留天数</span>
+        <input v-model.number="retentionDraft.candle_1h_days" type="number" min="1" max="3650" />
+      </label>
+
+      <label class="form-field">
+        <span>4h K 线保留天数</span>
+        <input v-model.number="retentionDraft.candle_4h_days" type="number" min="1" max="3650" />
+      </label>
+
+      <label class="form-field">
+        <span>1d K 线保留天数</span>
+        <input v-model.number="retentionDraft.candle_1d_days" type="number" min="1" max="7300" />
+      </label>
+
+      <label class="form-field">
+        <span>行情快照保留天数</span>
+        <input v-model.number="retentionDraft.snapshot_days" type="number" min="1" max="3650" />
+      </label>
+    </div>
+
+    <p class="muted">
+      必须满足 1h ≤ 4h ≤ 1d。未保存过时使用内置默认值：365 / 730 / 1825 / 90 天。
+      <span v-if="retention">当前来源：{{ retention.source === 'database' ? '数据库' : '内置默认值' }}</span>
+    </p>
+
+    <div class="form-actions">
+      <button class="primary-button" type="button" :disabled="retentionSaving" @click="saveRetention">
+        {{ retentionSaving ? '保存中…' : '保存回收策略' }}
+      </button>
+    </div>
+
+    <p v-if="retentionError" class="error">{{ retentionError }}</p>
+    <p v-if="retentionNotice" class="notice">{{ retentionNotice }}</p>
   </section>
 
   <section v-if="prefs" class="form-card settings-card">
