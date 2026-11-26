@@ -42,6 +42,7 @@ class MonitorContext:
     thesis: InvestmentThesis | None
     quote: Any
     indicators: dict[str, dict[str, object]]
+    recent_candles: dict[str, list[dict[str, object]]]
     derivatives: Any | None
     spot_position: dict[str, Any]
     derivative_position: dict[str, Any] | None
@@ -86,6 +87,24 @@ def quote_dict(quote: Any) -> dict[str, object]:
         "staleness": quote.staleness,
         "source": quote.source,
     }
+
+
+def candle_dict(candle: Any) -> dict[str, object]:
+    return {
+        "open_time": candle.open_time.isoformat(),
+        "open": str(candle.open),
+        "high": str(candle.high),
+        "low": str(candle.low),
+        "close": str(candle.close),
+        "volume": str(candle.volume),
+        "confirmed": candle.confirmed,
+    }
+
+
+def recent_candle_payload(candles: list[Any], limit: int) -> list[dict[str, object]]:
+    if limit <= 0:
+        return []
+    return [candle_dict(candle) for candle in candles[-limit:]]
 
 
 def derivatives_dict(overview: Any) -> dict[str, object]:
@@ -176,6 +195,15 @@ async def build_monitor_context(
     indicators = await market.indicators(
         asset.symbol, [Timeframe.H1, Timeframe.H4, Timeframe.D1], "SPOT"
     )
+    recent_candles: dict[str, list[dict[str, object]]] = {}
+    for timeframe, limit in (
+        (Timeframe.H1, 24),
+        (Timeframe.H4, 18),
+        (Timeframe.D1, 14),
+    ):
+        bars = await market.recent_candles(asset.symbol, timeframe, limit, "SPOT")
+        recent_candles[timeframe.value] = recent_candle_payload(bars, limit)
+
     derivatives = None
     try:
         derivatives = await market.derivatives(asset.symbol)
@@ -216,6 +244,7 @@ async def build_monitor_context(
         "market": {
             "quote": quote_dict(quote),
             "indicators": indicators,
+            "recent_candles": recent_candles,
             "derivatives": derivatives_dict(derivatives) if derivatives else None,
         },
         "thesis": thesis_dict(thesis) if thesis is not None else None,
@@ -262,6 +291,7 @@ async def build_monitor_context(
         thesis=thesis,
         quote=quote,
         indicators=indicators,
+        recent_candles=recent_candles,
         derivatives=derivatives,
         spot_position=spot_position,
         derivative_position=derivative_position,
@@ -290,6 +320,13 @@ def source_list(ctx: MonitorContext) -> list[dict[str, object]]:
             "tool": "get_technical_indicators",
             "label": "1h/4h/1d 指标",
             "as_of": ctx.indicators.get("1h", {}).get("as_of"),
+        },
+        {
+            "tool": "get_recent_candles",
+            "label": "最近 1h/4h/1d K 线",
+            "as_of": ctx.recent_candles.get("1h", [{}])[-1].get("open_time")
+            if ctx.recent_candles.get("1h")
+            else None,
         },
         {
             "tool": "get_portfolio",

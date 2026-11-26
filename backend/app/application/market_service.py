@@ -78,6 +78,19 @@ class MarketService:
             result[timeframe.value] = build_indicator_snapshot(candles)
         return result
 
+    async def recent_candles(
+        self,
+        symbol: str,
+        timeframe: Timeframe,
+        limit: int = 24,
+        market_type: str = "SPOT",
+    ) -> list[Candle]:
+        """Return the latest bars from the same 220-bar fetch used by indicators."""
+        if limit <= 0:
+            return []
+        candles = await self.candles(symbol, timeframe, 220, market_type)
+        return candles[-limit:]
+
     async def derivatives(self, symbol: str) -> DerivativesOverview:
         instrument = await self._instrument(symbol, "SWAP")
         cached = _cache_get(f"derivatives:{instrument.symbol}")
